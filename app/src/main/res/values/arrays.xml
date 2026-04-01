@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="categories_default">
+        <item>All Categories</item>
+        <item>General</item>
+        <item>Social</item>
+        <item>Finance</item>
+        <item>Work</item>
+    </string-array>
+</resources>
