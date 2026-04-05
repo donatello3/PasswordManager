@@ -12,10 +12,12 @@ object CryptoManager {
     private const val PREF_NAME = "crypto_prefs"
     private const val KEY_SALT = "salt"
     private const val KEY_HASH = "hash"
+    private const val KEY_EMAIL = "email"
 
     private const val ITERATIONS = 100_000
     private const val KEY_LENGTH = 256
 
+    @Deprecated("")
     fun setupMasterPassword(context: Context, masterPassword: String): ByteArray {
         // Generate a random salt
         val salt = ByteArray(32)
@@ -46,6 +48,75 @@ object CryptoManager {
         return key
     }
 
+    fun setupAccount(context: Context, email: String, password: String): ByteArray {
+        // Generate salt
+        val salt = ByteArray(32)
+        SecureRandom().nextBytes(salt)
+
+        // Derive key from password
+        val key = deriveKey(password, salt)
+
+        // Hash password for verification
+        val hash = hashPassword(password, salt)
+
+        // Store salt, hash, and email in EncryptedSharedPreferences
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context,
+            PREF_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        sharedPrefs.edit()
+            .putString(KEY_SALT, salt.joinToString(",") { it.toString() })
+            .putString(KEY_HASH, hash.joinToString(",") { it.toString() })
+            .putString(KEY_EMAIL, email)
+            .apply()
+
+        return key
+    }
+
+    fun verifyAccount(context: Context, email: String, password: String): Boolean {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context,
+            PREF_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        val storedEmail = sharedPrefs.getString(KEY_EMAIL, null) ?: return false
+        if (storedEmail != email) return false
+
+        val saltStr = sharedPrefs.getString(KEY_SALT, null) ?: return false
+        val hashStr = sharedPrefs.getString(KEY_HASH, null) ?: return false
+
+        val salt = saltStr.split(",").map { it.toByte() }.toByteArray()
+        val storedHash = hashStr.split(",").map { it.toByte() }.toByteArray()
+
+        val derivedHash = hashPassword(password, salt)
+        return derivedHash.contentEquals(storedHash)
+    }
+
+    fun getLoggedInEmail(context: Context): String? {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context,
+            PREF_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        return sharedPrefs.getString(KEY_EMAIL, null)
+    }
+
     fun isMasterPasswordSet(context: Context): Boolean {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -60,6 +131,7 @@ object CryptoManager {
         return sharedPrefs.contains(KEY_SALT) && sharedPrefs.contains(KEY_HASH)
     }
 
+    @Deprecated("")
     fun verifyMasterPassword(context: Context, masterPassword: String): Boolean {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -78,6 +150,29 @@ object CryptoManager {
         val storedHash = hashStr.split(",").map { it.toByte() }.toByteArray()
 
         val derivedHash = hashPassword(masterPassword, salt)
+        return derivedHash.contentEquals(storedHash)
+    }
+
+    fun verifyPasswordOnly(context: Context, password: String): Boolean {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context,
+            PREF_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        // Check if email exists (meaning account is set up)
+        val storedEmail = sharedPrefs.getString(KEY_EMAIL, null) ?: return false
+        val saltStr = sharedPrefs.getString(KEY_SALT, null) ?: return false
+        val hashStr = sharedPrefs.getString(KEY_HASH, null) ?: return false
+
+        val salt = saltStr.split(",").map { it.toByte() }.toByteArray()
+        val storedHash = hashStr.split(",").map { it.toByte() }.toByteArray()
+
+        val derivedHash = hashPassword(password, salt)
         return derivedHash.contentEquals(storedHash)
     }
 
