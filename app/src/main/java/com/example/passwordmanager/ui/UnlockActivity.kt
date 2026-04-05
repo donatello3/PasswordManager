@@ -20,20 +20,18 @@ class UnlockActivity : AppCompatActivity() {
 
         binding.btnUnlock.setOnClickListener {
             val password = binding.etPassword.text.toString()
+
             if (password.isEmpty()) {
                 Toast.makeText(this, "Enter password", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            // Verify master password
-            if (CryptoManager.verifyMasterPassword(this, password)) {
-                // Get the database key
+            // Verify password against stored email + hash
+            if (CryptoManager.verifyPasswordOnly(this, password)) {
                 val key = CryptoManager.getDatabaseKey(this, password)
                 if (key != null) {
-                    // Initialize the repository using the key
                     val app = application as PasswordManagerApplication
-                    app.appContainer.provideRepository(key) // store repository in app container
-                    // Go to MainActivity
+                    app.appContainer.provideRepository(key)
                     startActivity(Intent(this, MainActivity::class.java))
                     finish()
                 } else {

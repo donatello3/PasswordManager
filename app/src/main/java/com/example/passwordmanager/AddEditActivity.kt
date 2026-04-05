@@ -38,8 +38,13 @@ class AddEditActivity : AppCompatActivity() {
 
         // Set up generate password button
         binding.btnGenerate.setOnClickListener {
-            val generated = generatePassword()
-            binding.etPassword.setText(generated)
+            PasswordGeneratorDialog(this) { generatedPassword ->
+                val currentText = binding.etPassword.text.toString()
+                val newText = currentText + generatedPassword
+                binding.etPassword.setText(newText)
+                // Move cursor to the end
+                binding.etPassword.setSelection(newText.length)
+            }.show()
         }
 
         // Set up save button
@@ -144,16 +149,5 @@ class AddEditActivity : AppCompatActivity() {
             }
             finish()
         }
-    }
-
-    private fun generatePassword(): String {
-        val rules = listOf(
-            CharacterRule(EnglishCharacterData.UpperCase, 1),
-            CharacterRule(EnglishCharacterData.LowerCase, 1),
-            CharacterRule(EnglishCharacterData.Digit, 1),
-            CharacterRule(EnglishCharacterData.Special, 1)
-        )
-        val generator = PasswordGenerator()
-        return generator.generatePassword(12, rules)
     }
 }

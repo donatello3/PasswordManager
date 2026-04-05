@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">PasswordManager</string>
+
+    <!-- Password generator dialog -->
+    <string name="password_generator_title">Generate Password</string>
+    <string name="password_length">Length</string>
+    <string name="include_digits">Digits (e.g. 123)</string>
+    <string name="include_letters">Letters (e.g. Aa)</string>
+    <string name="include_symbols">Symbols (e.g. @!#$?)</string>
+    <string name="generate">Generate</string>
+    <string name="cancel">Cancel</string>
 </resources>
