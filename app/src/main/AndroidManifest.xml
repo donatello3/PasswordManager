@@ -23,6 +23,7 @@
         <activity android:name=".ui.UnlockActivity" />
         <activity android:name=".MainActivity" />
         <activity android:name=".AddEditActivity" />
+        <activity android:name=".PasswordDetailActivity" />
     </application>
 
 </manifest>
