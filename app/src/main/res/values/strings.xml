@@ -9,4 +9,11 @@
     <string name="include_symbols">Symbols (e.g. @!#$?)</string>
     <string name="generate">Generate</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Detail view -->
+    <string name="copy_username">Copy username</string>
+    <string name="copy_password">Copy password</string>
+    <string name="username_copied">Username copied to clipboard</string>
+    <string name="password_copied">Password copied to clipboard</string>
+    <string name="edit_entry">Edit entry</string>
 </resources>

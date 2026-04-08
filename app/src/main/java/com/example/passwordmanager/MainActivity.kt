@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun editPassword(entry: PasswordEntry) {
-        val intent = Intent(this, AddEditActivity::class.java)
+        val intent = Intent(this, PasswordDetailActivity::class.java)
         intent.putExtra("entry_id", entry.id)
         startActivity(intent)
     }
