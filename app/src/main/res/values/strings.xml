@@ -7,8 +7,9 @@
     <string name="include_digits">Digits (e.g. 123)</string>
     <string name="include_letters">Letters (e.g. Aa)</string>
     <string name="include_symbols">Symbols (e.g. @!#$?)</string>
-    <string name="generate">Generate</string>
     <string name="cancel">Cancel</string>
+    <string name="refresh">Refresh</string>
+    <string name="use">Use</string>
 
     <!-- Detail view -->
     <string name="copy_username">Copy username</string>

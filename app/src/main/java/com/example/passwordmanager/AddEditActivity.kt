@@ -39,12 +39,15 @@ class AddEditActivity : AppCompatActivity() {
         // Set up generate password button
         binding.btnGenerate.setOnClickListener {
             PasswordGeneratorDialog(this) { generatedPassword ->
-                val currentText = binding.etPassword.text.toString()
-                val newText = currentText + generatedPassword
-                binding.etPassword.setText(newText)
+                binding.etPassword.setText(generatedPassword)
                 // Move cursor to the end
-                binding.etPassword.setSelection(newText.length)
+                binding.etPassword.setSelection(generatedPassword.length)
             }.show()
+        }
+
+        // Back button
+        binding.btnBack.setOnClickListener {
+            finish()
         }
 
         // Set up save button
@@ -149,5 +152,10 @@ class AddEditActivity : AppCompatActivity() {
             }
             finish()
         }
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
     }
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import com.example.passwordmanager.databinding.DialogPasswordGeneratorBinding
 import java.security.SecureRandom
+import android.widget.SeekBar
 
 class PasswordGeneratorDialog (
     private val context: Context,
@@ -12,6 +13,7 @@ class PasswordGeneratorDialog (
 ) {
 
     private val binding = DialogPasswordGeneratorBinding.inflate(LayoutInflater.from(context))
+    private var currentPassword: String = ""
 
     fun show() {
         val dialog = AlertDialog.Builder(context)
@@ -19,22 +21,47 @@ class PasswordGeneratorDialog (
             .setView(binding.root)
             .create()
 
-        binding.btnGenerate.setOnClickListener {
-            val length = binding.etLength.text.toString().toIntOrNull() ?: 16
-            val includeDigits = binding.cbDigits.isChecked
-            val includeLetters = binding.cbLetters.isChecked
-            val includeSymbols = binding.cbSymbols.isChecked
+        // Set up SeekBar listener
+        binding.sbLength.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val length = progress + 1  // Convert 0-31 to 1-32
+                binding.tvLengthValue.text = length.toString()
+                generateAndDisplayPassword()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
-            val password = generatePassword(length, includeDigits, includeLetters, includeSymbols)
-            onPasswordGenerated(password)
+        // Generate initial password and display
+        generateAndDisplayPassword()
+
+        // Refresh button: regenerate with same settings and update preview
+        binding.btnRefresh.setOnClickListener {
+            generateAndDisplayPassword()
+        }
+
+        // Use button: return current password and close
+        binding.btnUse.setOnClickListener {
+            onPasswordGenerated(currentPassword)
             dialog.dismiss()
         }
 
+        // Cancel button: just close
         binding.btnCancel.setOnClickListener {
             dialog.dismiss()
         }
 
         dialog.show()
+    }
+
+    private fun generateAndDisplayPassword() {
+        val length = binding.sbLength.progress + 1  // Convert to actual length
+        val includeDigits = binding.cbDigits.isChecked
+        val includeLetters = binding.cbLetters.isChecked
+        val includeSymbols = binding.cbSymbols.isChecked
+
+        currentPassword = generatePassword(length, includeDigits, includeLetters, includeSymbols)
+        binding.tvPasswordPreview.text = currentPassword
     }
 
     private fun generatePassword(

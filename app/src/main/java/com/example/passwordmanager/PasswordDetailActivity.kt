@@ -48,8 +48,18 @@ class PasswordDetailActivity : AppCompatActivity() {
             val intent = Intent(this, AddEditActivity::class.java)
             intent.putExtra("entry_id", entryId)
             startActivity(intent)
-            finish() // optional: close detail after edit
         }
+
+        // Back button
+        binding.btnBack.setOnClickListener {
+            finish()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reload entry when returning from edit screen
+        loadEntry()
     }
 
     private fun loadEntry() {
@@ -84,5 +94,10 @@ class PasswordDetailActivity : AppCompatActivity() {
             else -> "Copied to clipboard"
         }
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
     }
 }
