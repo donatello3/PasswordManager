@@ -49,9 +49,7 @@ object CryptoManager {
     }
 
     fun setupAccount(context: Context, email: String, password: String): ByteArray {
-        // Generate salt
-        val salt = ByteArray(32)
-        SecureRandom().nextBytes(salt)
+        val salt = getDeterministicSalt(email)
 
         // Derive key from password
         val key = deriveKey(password, salt)
@@ -204,5 +202,10 @@ object CryptoManager {
         digest.update(salt)
         digest.update(password.toByteArray())
         return digest.digest()
+    }
+
+    private fun getDeterministicSalt(email: String): ByteArray {
+        val md = MessageDigest.getInstance("SHA-256")
+        return md.digest(email.toByteArray())
     }
 }

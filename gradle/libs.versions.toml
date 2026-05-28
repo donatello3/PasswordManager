@@ -16,6 +16,10 @@ sqlcipher = "4.5.4"
 sqlite = "2.4.0"
 securityCrypto = "1.1.0-alpha06"
 passay = "1.6.4"
+firebaseBom = "34.12.0"
+workManager = "2.10.0"
+gson = "2.11.0"
+googleServices = "4.4.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -48,6 +52,18 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 # Password generator
 passay = { group = "org.passay", name = "passay", version.ref = "passay" }
 
+# Firebase
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+
+# WorkManager
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+
+# Gson
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

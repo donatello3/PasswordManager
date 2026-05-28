@@ -46,8 +46,8 @@ class AddEditActivity : AppCompatActivity() {
         }
 
         // Back button
-        binding.btnBack.setOnClickListener {
-            finish()
+        binding.toolbar.setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
         }
 
         // Set up save button
@@ -73,6 +73,7 @@ class AddEditActivity : AppCompatActivity() {
                 binding.etPassword.setText(entry.password)
                 binding.etUrl.setText(entry.url)
                 binding.etNotes.setText(entry.notes)
+                binding.switchSync.isChecked = entry.syncEnabled
 
                 // Set category spinner position
                 val categories = resources.getStringArray(R.array.categories_default).toMutableList()
@@ -112,7 +113,9 @@ class AddEditActivity : AppCompatActivity() {
                     notes = notes,
                     category = category,
                     createdAt = now,
-                    updatedAt = now
+                    updatedAt = now,
+                    syncEnabled = binding.switchSync.isChecked,
+                    lastModified = now.time
                 )
                 repository?.insert(newEntry)
             } else {
@@ -126,8 +129,9 @@ class AddEditActivity : AppCompatActivity() {
                         url = url,
                         notes = notes,
                         category = category,
-                        updatedAt = now
-                        // createdAt remains unchanged
+                        syncEnabled = binding.switchSync.isChecked,
+                        updatedAt = now,
+                        lastModified = now.time
                     )
                     repository?.update(updatedEntry)
                 } else {

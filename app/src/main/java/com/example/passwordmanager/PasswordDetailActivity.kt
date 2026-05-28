@@ -51,8 +51,8 @@ class PasswordDetailActivity : AppCompatActivity() {
         }
 
         // Back button
-        binding.btnBack.setOnClickListener {
-            finish()
+        binding.toolbar.setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
         }
     }
 
