@@ -4,8 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.example.passwordmanager.data.remote.FirestoreDataSource
 import com.example.passwordmanager.databinding.ActivitySetupBinding
 import com.example.passwordmanager.utils.CryptoManager
+import kotlinx.coroutines.launch
 
 class SetupActivity : AppCompatActivity() {
 
@@ -13,8 +16,7 @@ class SetupActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Using View Binding (recommended) – enable it in build.gradle.kts:
-        // android { buildFeatures { viewBinding = true } }
+
         binding = ActivitySetupBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -43,9 +45,18 @@ class SetupActivity : AppCompatActivity() {
             // Store email + password, derive key
             val key = CryptoManager.setupAccount(this, email, password)
 
-            Toast.makeText(this, "Account created! Please unlock.", Toast.LENGTH_SHORT).show()
-            startActivity(Intent(this, UnlockActivity::class.java))
-            finish()
+            val firestore = FirestoreDataSource(this)
+            lifecycleScope.launch {
+                val success = firestore.signUpWithEmail(email, password)
+
+                if (success) {
+                    Toast.makeText(this@SetupActivity, "Account created! Please unlock.", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@SetupActivity, UnlockActivity::class.java))
+                    finish()
+                } else {
+                    Toast.makeText(this@SetupActivity, "Firebase registration failed", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 }

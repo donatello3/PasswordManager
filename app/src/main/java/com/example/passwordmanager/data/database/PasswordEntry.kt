@@ -14,5 +14,8 @@ data class PasswordEntry(
     val notes: String = "",
     val category: String = "General",
     val createdAt: Date = Date(),
-    val updatedAt: Date = Date()
+    val updatedAt: Date = Date(),
+    val syncEnabled: Boolean = false,
+    val remoteId: String? = null,
+    val lastModified: Long = System.currentTimeMillis()  // for conflict resolution
 )

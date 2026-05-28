@@ -20,6 +20,9 @@ interface PasswordDao {
     @Query("SELECT * FROM passwords WHERE id = :id")
     suspend fun getPasswordById(id: Long): PasswordEntry?
 
+    @Query("SELECT * FROM passwords WHERE remoteId = :remoteId")
+    suspend fun getPasswordByRemoteId(remoteId: String): PasswordEntry?
+
     @Insert
     suspend fun insert(entry: PasswordEntry)
 
