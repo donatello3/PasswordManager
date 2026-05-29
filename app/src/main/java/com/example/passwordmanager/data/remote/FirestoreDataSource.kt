@@ -6,7 +6,6 @@ import com.example.passwordmanager.utils.EncryptionManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
-import kotlin.text.get
 
 class FirestoreDataSource(private val context: Context) {
     private val auth = FirebaseAuth.getInstance()
@@ -30,45 +29,51 @@ class FirestoreDataSource(private val context: Context) {
         val encrypted = EncryptionManager.encryptEntry(context, entry, masterPassword) ?: return null
         val data = mapOf(
             "encryptedData" to encrypted,
-            "lastModified" to entry.lastModified,
-            "localId" to entry.id
+            "lastModified" to entry.lastModified
         )
         val docRef = if (entry.remoteId != null) {
             db.collection("users").document(email).collection("passwords").document(entry.remoteId)
         } else {
             db.collection("users").document(email).collection("passwords").document()
         }
-        docRef.set(data).await()
-        return docRef.id
+        return try {
+            docRef.set(data).await()
+            docRef.id
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     suspend fun deleteRemoteEntry(entry: PasswordEntry) {
         if (entry.remoteId == null) return
         val email = currentUserEmail ?: return
-        db.collection("users").document(email).collection("passwords").document(entry.remoteId).delete().await()
+        try {
+            db.collection("users").document(email).collection("passwords")
+                .document(entry.remoteId).delete().await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     suspend fun fetchAllEntries(masterPassword: String): List<PasswordEntry> {
         val email = currentUserEmail ?: return emptyList()
-        val snapshot = db.collection("users").document(email).collection("passwords").get().await()
+        val snapshot = try {
+            db.collection("users").document(email).collection("passwords").get().await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return emptyList()
+        }
         val entries = mutableListOf<PasswordEntry>()
         for (doc in snapshot.documents) {
             val encrypted = doc.getString("encryptedData") ?: continue
             val lastModifiedRemote = doc.getLong("lastModified") ?: 0
-            val localId = doc.getLong("localId") ?: 0
-
             try {
                 val entry = EncryptionManager.decryptEntry(context, encrypted, masterPassword)
                 if (entry != null) {
-                    val syncedEntry = entry.copy(
-                        remoteId = doc.id,
-                        lastModified = lastModifiedRemote,
-                        id = localId  // keep local id
-                    )
-                    entries.add(syncedEntry)
+                    entries.add(entry.copy(remoteId = doc.id, lastModified = lastModifiedRemote))
                 }
             } catch (e: Exception) {
-                // Игнорируем записи, которые невозможно расшифровать текущим ключом
                 e.printStackTrace()
             }
         }

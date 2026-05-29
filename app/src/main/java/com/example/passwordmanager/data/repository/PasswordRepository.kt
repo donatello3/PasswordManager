@@ -6,8 +6,6 @@ import com.example.passwordmanager.data.database.PasswordDao
 import com.example.passwordmanager.data.database.PasswordEntry
 import com.example.passwordmanager.data.remote.FirestoreDataSource
 import kotlinx.coroutines.flow.Flow
-import kotlin.text.compareTo
-import kotlin.text.insert
 
 class PasswordRepository(private val dao: PasswordDao,
                          private val remoteDataSource: FirestoreDataSource? = null,
@@ -18,30 +16,53 @@ class PasswordRepository(private val dao: PasswordDao,
     fun getAllCategories(): Flow<List<String>> = dao.getAllCategories()
 
     suspend fun insert(entry: PasswordEntry) {
-        dao.insert(entry)
+        val newId = dao.insert(entry)
         if (entry.syncEnabled && remoteDataSource != null) {
-            val masterPassword = getMasterPassword() // we'll need to store it temporarily
-            val remoteId = remoteDataSource.uploadEntry(entry, masterPassword)
-            if (remoteId != null) {
-                dao.update(entry.copy(remoteId = remoteId))
+            try {
+                val masterPassword = getMasterPassword()
+                val entryWithId = entry.copy(id = newId)
+                val remoteId = remoteDataSource.uploadEntry(entryWithId, masterPassword)
+                if (remoteId != null) {
+                    dao.update(entryWithId.copy(remoteId = remoteId))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
 
     suspend fun update(entry: PasswordEntry) {
         val oldEntry = dao.getPasswordById(entry.id)
-        dao.update(entry)
         if (entry.syncEnabled && remoteDataSource != null) {
-            val masterPassword = getMasterPassword()
-            remoteDataSource.uploadEntry(entry, masterPassword)
-        } else if (oldEntry?.syncEnabled == true && !entry.syncEnabled) {
+            try {
+                val masterPassword = getMasterPassword()
+                val remoteId = remoteDataSource.uploadEntry(entry, masterPassword)
+                val entryToSave = if (remoteId != null) entry.copy(remoteId = remoteId) else entry
+                dao.update(entryToSave)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                dao.update(entry)
+            }
+        } else if (!entry.syncEnabled && oldEntry?.remoteId != null && remoteDataSource != null) {
+            try {
+                remoteDataSource.deleteRemoteEntry(oldEntry)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            dao.update(entry.copy(remoteId = null))
+        } else {
+            dao.update(entry)
         }
     }
 
     suspend fun delete(entry: PasswordEntry) {
         dao.delete(entry)
-        if (entry.syncEnabled && remoteDataSource != null) {
-            remoteDataSource.deleteRemoteEntry(entry)
+        if (entry.remoteId != null && remoteDataSource != null) {
+            try {
+                remoteDataSource.deleteRemoteEntry(entry)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -57,14 +78,14 @@ class PasswordRepository(private val dao: PasswordDao,
 
         val remoteEntries = remoteDataSource.fetchAllEntries(masterPassword)
         for (remoteEntry in remoteEntries) {
-            // Проверяем, есть ли запись уже в базе (по ID из Firebase)
-            val existing = remoteEntry.remoteId?.let { dao.getPasswordByRemoteId(it) }
-
+            val remoteId = remoteEntry.remoteId ?: continue
+            // Дедуплицируем только по remoteId (Firestore document ID)
+            val existing = dao.getPasswordByRemoteId(remoteId)
             if (existing == null) {
-                // Записи нет — вставляем её как новую (id = 0 позволяет Room самому сгенерировать локальный ключ)
+                // Новая запись — вставляем с id=0, Room сгенерирует локальный ключ
                 dao.insert(remoteEntry.copy(id = 0, syncEnabled = true))
             } else {
-                // Если запись есть, обновляем её в случае если версия на сервере новее
+                // Обновляем только если версия на сервере новее
                 if (remoteEntry.lastModified > existing.lastModified) {
                     dao.update(remoteEntry.copy(id = existing.id, syncEnabled = true))
                 }

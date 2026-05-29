@@ -9,6 +9,7 @@ import com.example.passwordmanager.data.remote.FirestoreDataSource
 import com.example.passwordmanager.databinding.ActivitySetupBinding
 import com.example.passwordmanager.utils.CryptoManager
 import kotlinx.coroutines.launch
+import android.view.View
 
 class SetupActivity : AppCompatActivity() {
 
@@ -42,21 +43,31 @@ class SetupActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            showLoading(true)
+
             // Store email + password, derive key
             val key = CryptoManager.setupAccount(this, email, password)
 
             val firestore = FirestoreDataSource(this)
             lifecycleScope.launch {
-                val success = firestore.signUpWithEmail(email, password)
+                try {
+                    val success = firestore.signUpWithEmail(email, password)
 
-                if (success) {
-                    Toast.makeText(this@SetupActivity, "Account created! Please unlock.", Toast.LENGTH_SHORT).show()
-                    startActivity(Intent(this@SetupActivity, UnlockActivity::class.java))
-                    finish()
-                } else {
-                    Toast.makeText(this@SetupActivity, "Firebase registration failed", Toast.LENGTH_SHORT).show()
+                    if (success) {
+                        Toast.makeText(this@SetupActivity, "Account created! Please unlock.", Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this@SetupActivity, UnlockActivity::class.java))
+                        finish()
+                    } else {
+                        Toast.makeText(this@SetupActivity, "Firebase registration failed", Toast.LENGTH_SHORT).show()
+                    }
+                } finally {
+                    showLoading(false)
                 }
             }
         }
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 }

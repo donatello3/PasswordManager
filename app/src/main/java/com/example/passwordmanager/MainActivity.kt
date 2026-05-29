@@ -16,6 +16,8 @@ import com.example.passwordmanager.data.database.PasswordEntry
 import com.example.passwordmanager.data.repository.PasswordRepository
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.launch
+import android.widget.FrameLayout
+import android.view.View
 
 class MainActivity : AppCompatActivity() {
 
@@ -24,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var searchView: androidx.appcompat.widget.SearchView
     private lateinit var categorySpinner: Spinner
     private lateinit var fabAdd: FloatingActionButton
+    private lateinit var loadingOverlay: FrameLayout
 
     private val repository: PasswordRepository?
         get() = (application as PasswordManagerApplication).appContainer.repository
@@ -40,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         searchView = findViewById(R.id.searchView)
         categorySpinner = findViewById(R.id.categorySpinner)
         fabAdd = findViewById(R.id.fabAdd)
+        loadingOverlay = findViewById(R.id.loadingOverlay)
 
         // Set up RecyclerView
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -79,15 +83,25 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, AddEditActivity::class.java))
         }
 
-        // Load passwords
-        loadPasswords()
+        // ViewModel observation for passwords would require a MainViewModel setup,
+        // but here we just show loading overlay visually when starting if we were to load.
+        // Assuming we do simple DB loading, it is very fast, but let's just make sure load functionality is updated.
+        // If there were any intense remote calls here we would put showLoading(true)/(false)
+
+        observeData()
     }
 
-    private fun loadPasswords() {
+    private fun showLoading(isLoading: Boolean) {
+        loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    private fun observeData() {
+        showLoading(true)
         lifecycleScope.launch {
             repository?.getAllPasswords()?.collect { passwords ->
                 allPasswords = passwords
                 filterPasswords()
+                showLoading(false)
             }
         }
     }

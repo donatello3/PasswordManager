@@ -24,7 +24,7 @@ interface PasswordDao {
     suspend fun getPasswordByRemoteId(remoteId: String): PasswordEntry?
 
     @Insert
-    suspend fun insert(entry: PasswordEntry)
+    suspend fun insert(entry: PasswordEntry): Long
 
     @Update
     suspend fun update(entry: PasswordEntry)

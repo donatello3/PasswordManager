@@ -1,6 +1,7 @@
 package com.example.passwordmanager
 
 import android.os.Bundle
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -9,9 +10,6 @@ import com.example.passwordmanager.data.database.PasswordEntry
 import com.example.passwordmanager.data.repository.PasswordRepository
 import com.example.passwordmanager.databinding.ActivityAddEditBinding
 import kotlinx.coroutines.launch
-import org.passay.CharacterRule
-import org.passay.EnglishCharacterData
-import org.passay.PasswordGenerator
 import java.util.Date
 
 class AddEditActivity : AppCompatActivity() {
@@ -55,10 +53,11 @@ class AddEditActivity : AppCompatActivity() {
             savePassword()
         }
 
-        // Check if editing (entryId passed in intent)
         entryId = intent.getLongExtra("entry_id", -1)
         if (entryId != -1L) {
             loadEntryForEditing()
+        } else {
+            binding.switchSync.isChecked = true
         }
     }
 
@@ -94,6 +93,7 @@ class AddEditActivity : AppCompatActivity() {
         val url = binding.etUrl.text.toString().trim()
         val notes = binding.etNotes.text.toString().trim()
         val category = binding.spinnerCategory.selectedItem.toString()
+        val syncEnabled = binding.switchSync.isChecked
 
         if (title.isEmpty() || username.isEmpty() || password.isEmpty()) {
             Toast.makeText(this, "Title, username and password are required", Toast.LENGTH_SHORT).show()
@@ -102,60 +102,75 @@ class AddEditActivity : AppCompatActivity() {
 
         val now = Date()
 
+        // Check if editing an existing entry
+        val isEditing = entryId != -1L
+
+        // Show loading indicator
+        showLoading(true)
+
         lifecycleScope.launch {
-            if (entryId == -1L) {
-                // Insert new entry
-                val newEntry = PasswordEntry(
-                    title = title,
-                    username = username,
-                    password = password,
-                    url = url,
-                    notes = notes,
-                    category = category,
-                    createdAt = now,
-                    updatedAt = now,
-                    syncEnabled = binding.switchSync.isChecked,
-                    lastModified = now.time
-                )
-                repository?.insert(newEntry)
-            } else {
-                // Update existing entry – preserve original createdAt
-                val original = existingEntry
-                if (original != null) {
-                    val updatedEntry = original.copy(
-                        title = title,
-                        username = username,
-                        password = password,
-                        url = url,
-                        notes = notes,
-                        category = category,
-                        syncEnabled = binding.switchSync.isChecked,
-                        updatedAt = now,
-                        lastModified = now.time
-                    )
-                    repository?.update(updatedEntry)
-                } else {
-                    // Fallback: fetch fresh entry to preserve createdAt
-                    val existing = repository?.getPasswordById(entryId)
-                    if (existing != null) {
-                        val updatedEntry = existing.copy(
+            try {
+                if (isEditing) {
+                    // Update existing entry – preserve original createdAt
+                    val original = existingEntry
+                    if (original != null) {
+                        val updatedEntry = original.copy(
                             title = title,
                             username = username,
                             password = password,
                             url = url,
                             notes = notes,
                             category = category,
-                            updatedAt = now
+                            syncEnabled = syncEnabled,
+                            updatedAt = now,
+                            lastModified = now.time
                         )
                         repository?.update(updatedEntry)
                     } else {
-                        Toast.makeText(this@AddEditActivity, "Error: entry not found", Toast.LENGTH_SHORT).show()
-                        return@launch
+                        // Fallback: fetch fresh entry to preserve createdAt
+                        val existing = repository?.getPasswordById(entryId)
+                        if (existing != null) {
+                            val updatedEntry = existing.copy(
+                                title = title,
+                                username = username,
+                                password = password,
+                                url = url,
+                                notes = notes,
+                                category = category,
+                                updatedAt = now
+                            )
+                            repository?.update(updatedEntry)
+                        } else {
+                            Toast.makeText(this@AddEditActivity, "Error: entry not found", Toast.LENGTH_SHORT).show()
+                            return@launch
+                        }
                     }
+                } else {
+                    // Insert new entry
+                    val newEntry = PasswordEntry(
+                        id = existingEntry?.id ?: 0L,
+                        title = title,
+                        username = username,
+                        password = password,
+                        url = url,
+                        notes = notes,
+                        category = category,
+                        createdAt = existingEntry?.createdAt ?: Date(),
+                        updatedAt = Date(),
+                        syncEnabled = syncEnabled
+                    )
+                    repository?.insert(newEntry)
                 }
+                finish()
+            } finally {
+                // Hide loading indicator
+                showLoading(false)
             }
-            finish()
         }
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 
     override fun onSupportNavigateUp(): Boolean {

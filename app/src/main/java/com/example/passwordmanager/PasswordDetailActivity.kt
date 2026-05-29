@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -63,24 +64,30 @@ class PasswordDetailActivity : AppCompatActivity() {
     }
 
     private fun loadEntry() {
+        showLoading(true)
         lifecycleScope.launch {
-            entry = repository?.getPasswordById(entryId)
-            if (entry != null) {
-                displayEntry(entry!!)
-            } else {
-                Toast.makeText(this@PasswordDetailActivity, "Entry not found", Toast.LENGTH_SHORT).show()
-                finish()
+            try {
+                entry = repository?.getPasswordById(entryId)
+                if (entry == null) {
+                    Toast.makeText(this@PasswordDetailActivity, "Entry not found", Toast.LENGTH_SHORT).show()
+                    finish()
+                } else {
+                    entry?.let {
+                        binding.tvTitle.text = it.title
+                        binding.tvUsername.text = it.username
+                        binding.tvNotes.text = it.notes
+                        // Маскируем пароль
+                        binding.tvPassword.text = "•".repeat(it.password.length)
+                    }
+                }
+            } finally {
+                showLoading(false)
             }
         }
     }
 
-    private fun displayEntry(entry: PasswordEntry) {
-        binding.tvTitle.text = entry.title
-        binding.tvUsername.text = entry.username
-        binding.tvPassword.text = entry.password
-        binding.tvUrl.text = entry.url.ifEmpty { "—" }
-        binding.tvNotes.text = entry.notes.ifEmpty { "—" }
-        binding.tvCategory.text = entry.category
+    private fun showLoading(isLoading: Boolean) {
+        binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 
     private fun copyToClipboard(text: String, field: String) {
