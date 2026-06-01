@@ -11,6 +11,7 @@ import com.example.passwordmanager.data.remote.FirestoreDataSource
 import com.example.passwordmanager.databinding.ActivityUnlockBinding
 import com.example.passwordmanager.utils.CryptoManager
 import kotlinx.coroutines.launch
+import android.view.View
 
 class UnlockActivity : AppCompatActivity() {
 
@@ -31,40 +32,48 @@ class UnlockActivity : AppCompatActivity() {
 
             // Verify password against stored email + hash
             if (CryptoManager.verifyPasswordOnly(this, password)) {
+                showLoading(true)
+                // Derive encryption key to open local database
                 val key = CryptoManager.getDatabaseKey(this, password)
                 if (key != null) {
                     val app = application as PasswordManagerApplication
                     app.currentMasterPassword = password
                     app.appContainer.provideRepository(key)
 
-                    // Можно заблокировать кнопку на время загрузки, чтобы не было повторных нажатий
-                    binding.btnUnlock.isEnabled = false
-
                     lifecycleScope.launch {
-                        val email = CryptoManager.getLoggedInEmail(this@UnlockActivity)
-                        if (email != null) {
-                            val firestore = FirestoreDataSource(this@UnlockActivity)
-                            val success = firestore.signInWithEmail(email, password)
-                            if (success) {
-                                // Вызываем синхронизацию с Firebase после успешной аутентификации!
-                                val repository = app.appContainer.repository
-                                repository?.syncPasswordsFromRemote()
-                            } else {
-                                Toast.makeText(this@UnlockActivity, "Firebase sign in failed", Toast.LENGTH_SHORT).show()
+                        try {
+                            val email = CryptoManager.getLoggedInEmail(this@UnlockActivity)
+                            if (email != null) {
+                                val firestore = FirestoreDataSource(this@UnlockActivity)
+                                val success = firestore.signInWithEmail(email, password)
+                                if (success) {
+                                    // Вызываем синхронизацию с Firebase после успешной аутентификации!
+                                    val repository = app.appContainer.repository
+                                    repository?.syncPasswordsFromRemote()
+                                } else {
+                                    Toast.makeText(this@UnlockActivity, "Firebase sign in failed", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        }
 
-                        // Переход происходит только ПОСЛЕ окончания фоновой загрузки данных
-                        // (или если загрузка завершилась с ошибкой, мы всё равно пускаем локально)
-                        startActivity(Intent(this@UnlockActivity, MainActivity::class.java))
-                        finish()
+                            // Переход происходит только ПОСЛЕ окончания фоновой загрузки данных
+                            // (или если загрузка завершилась с ошибкой, мы всё равно пускаем локально)
+                            startActivity(Intent(this@UnlockActivity, MainActivity::class.java))
+                            finish()
+                        } finally {
+                            showLoading(false)
+                        }
                     }
                 } else {
+                    showLoading(false)
                     Toast.makeText(this, "Failed to derive key", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 Toast.makeText(this, "Wrong password", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 }

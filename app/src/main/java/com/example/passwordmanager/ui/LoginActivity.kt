@@ -9,6 +9,7 @@ import com.example.passwordmanager.data.remote.FirestoreDataSource
 import com.example.passwordmanager.databinding.ActivityLoginBinding
 import com.example.passwordmanager.utils.CryptoManager
 import kotlinx.coroutines.launch
+import android.view.View
 
 class LoginActivity : AppCompatActivity() {
 
@@ -29,19 +30,24 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            showLoading(true)
             val firestore = FirestoreDataSource(this)
             lifecycleScope.launch {
-                val success = firestore.signInWithEmail(email, password)
+                try {
+                    val success = firestore.signInWithEmail(email, password)
 
-                if (success) {
-                    // Сохраняем локальные данные для разблокировки (UnlockActivity)
-                    CryptoManager.setupAccount(this@LoginActivity, email, password)
+                    if (success) {
+                        // Сохраняем локальные данные для разблокировки (UnlockActivity)
+                        CryptoManager.setupAccount(this@LoginActivity, email, password)
 
-                    Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
-                    startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))
-                    finish()
-                } else {
-                    Toast.makeText(this@LoginActivity, "Firebase login failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))
+                        finish()
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Firebase login failed", Toast.LENGTH_SHORT).show()
+                    }
+                } finally {
+                    showLoading(false)
                 }
             }
         }
@@ -49,5 +55,9 @@ class LoginActivity : AppCompatActivity() {
         binding.btnCreateAccount.setOnClickListener {
             startActivity(Intent(this, SetupActivity::class.java))
         }
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">PasswordManager</string>
+    <string name="app_name">K Manager</string>
 
     <!-- Password generator dialog -->
     <string name="password_generator_title">Generate Password</string>
