@@ -2,22 +2,26 @@ package com.example.passwordmanager
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
+import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.FrameLayout
 import android.widget.Spinner
-import android.widget.Toast
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.passwordmanager.data.database.PasswordEntry
 import com.example.passwordmanager.data.repository.PasswordRepository
+import com.example.passwordmanager.ui.LoginActivity
+import com.example.passwordmanager.utils.CryptoManager
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.navigation.NavigationView
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
-import android.widget.FrameLayout
-import android.view.View
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,6 +31,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var categorySpinner: Spinner
     private lateinit var fabAdd: FloatingActionButton
     private lateinit var loadingOverlay: FrameLayout
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var navigationView: NavigationView
 
     private val repository: PasswordRepository?
         get() = (application as PasswordManagerApplication).appContainer.repository
@@ -37,6 +43,35 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Set up toolbar
+        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
+        // Set up drawer
+        drawerLayout = findViewById(R.id.drawerLayout)
+        navigationView = findViewById(R.id.navigationView)
+
+        // Hamburger icon opens the drawer
+        toolbar.setNavigationOnClickListener {
+            drawerLayout.openDrawer(navigationView)
+        }
+
+        // Set user email in drawer header
+        val headerView = navigationView.getHeaderView(0)
+        val tvUserEmail = headerView.findViewById<TextView>(R.id.tvNavUserEmail)
+        tvUserEmail.text = FirebaseAuth.getInstance().currentUser?.email ?: ""
+
+        // Navigation drawer item clicks
+        navigationView.setNavigationItemSelectedListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.nav_logout -> {
+                    drawerLayout.closeDrawers()
+                    showLogoutConfirmation()
+                }
+            }
+            true
+        }
 
         // Initialize views
         recyclerView = findViewById(R.id.recyclerView)
@@ -83,12 +118,29 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, AddEditActivity::class.java))
         }
 
-        // ViewModel observation for passwords would require a MainViewModel setup,
-        // but here we just show loading overlay visually when starting if we were to load.
-        // Assuming we do simple DB loading, it is very fast, but let's just make sure load functionality is updated.
-        // If there were any intense remote calls here we would put showLoading(true)/(false)
-
         observeData()
+    }
+
+    private fun showLogoutConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.logout_confirm_title)
+            .setMessage(R.string.logout_confirm_message)
+            .setPositiveButton(R.string.logout_confirm_yes) { _, _ -> performLogout() }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun performLogout() {
+        FirebaseAuth.getInstance().signOut()
+        val app = application as PasswordManagerApplication
+        app.currentMasterPassword = ""
+        app.appContainer.clearRepository()
+        CryptoManager.clearSession(this)
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 
     private fun showLoading(isLoading: Boolean) {
@@ -139,11 +191,10 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Delete Password")
             .setMessage("Are you sure you want to delete ${entry.title}?")
             .setPositiveButton("Delete") { _, _ ->
-                lifecycleScope.launch {
-                    repository?.delete(entry)
-                }
+                lifecycleScope.launch { repository?.delete(entry) }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 }
+

@@ -90,4 +90,24 @@ class FirestoreDataSource(private val context: Context) {
             false
         }
     }
+
+    suspend fun sendVerificationEmail(): Boolean {
+        return try {
+            auth.currentUser?.sendEmailVerification()?.await()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun isEmailVerified(): Boolean {
+        // Force refresh to get latest status from server
+        return try {
+            auth.currentUser?.reload()?.await()
+            auth.currentUser?.isEmailVerified == true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

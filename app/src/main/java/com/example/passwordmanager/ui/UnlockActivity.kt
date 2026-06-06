@@ -12,6 +12,7 @@ import com.example.passwordmanager.databinding.ActivityUnlockBinding
 import com.example.passwordmanager.utils.CryptoManager
 import kotlinx.coroutines.launch
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 
 class UnlockActivity : AppCompatActivity() {
 
@@ -30,47 +31,84 @@ class UnlockActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Verify password against stored email + hash
+            // Verify local password
             if (CryptoManager.verifyPasswordOnly(this, password)) {
                 showLoading(true)
-                // Derive encryption key to open local database
-                val key = CryptoManager.getDatabaseKey(this, password)
-                if (key != null) {
-                    val app = application as PasswordManagerApplication
-                    app.currentMasterPassword = password
-                    app.appContainer.provideRepository(key)
 
-                    lifecycleScope.launch {
-                        try {
-                            val email = CryptoManager.getLoggedInEmail(this@UnlockActivity)
-                            if (email != null) {
-                                val firestore = FirestoreDataSource(this@UnlockActivity)
-                                val success = firestore.signInWithEmail(email, password)
-                                if (success) {
-                                    // Вызываем синхронизацию с Firebase после успешной аутентификации!
-                                    val repository = app.appContainer.repository
-                                    repository?.syncPasswordsFromRemote()
-                                } else {
-                                    Toast.makeText(this@UnlockActivity, "Firebase sign in failed", Toast.LENGTH_SHORT).show()
-                                }
+                lifecycleScope.launch {
+                    try {
+                        val email = CryptoManager.getLoggedInEmail(this@UnlockActivity)
+                        if (email != null) {
+                            val firestore = FirestoreDataSource(this@UnlockActivity)
+
+                            // 1. Check email verification status
+                            val isVerified = firestore.isEmailVerified()
+                            if (!isVerified) {
+                                showLoading(false)
+                                showEmailNotVerifiedDialog(firestore)
+                                return@launch
                             }
 
-                            // Переход происходит только ПОСЛЕ окончания фоновой загрузки данных
-                            // (или если загрузка завершилась с ошибкой, мы всё равно пускаем локально)
-                            startActivity(Intent(this@UnlockActivity, MainActivity::class.java))
-                            finish()
-                        } finally {
+                            // 2. Email is verified → sign in to Firebase
+                            val signInSuccess = firestore.signInWithEmail(email, password)
+                            if (!signInSuccess) {
+                                Toast.makeText(this@UnlockActivity, "Firebase sign in failed", Toast.LENGTH_SHORT).show()
+                                showLoading(false)
+                                return@launch
+                            }
+
+                            // 3. Derive key and provide repository
+                            val key = CryptoManager.getDatabaseKey(this@UnlockActivity, password)
+                            if (key != null) {
+                                val app = application as PasswordManagerApplication
+                                app.currentMasterPassword = password
+                                app.appContainer.provideRepository(key)
+
+                                // 4. Sync remote passwords (optional, may be long)
+                                val repository = app.appContainer.repository
+                                repository?.syncPasswordsFromRemote()
+                            } else {
+                                Toast.makeText(this@UnlockActivity, "Failed to derive key", Toast.LENGTH_SHORT).show()
+                                showLoading(false)
+                                return@launch
+                            }
+                        } else {
+                            Toast.makeText(this@UnlockActivity, "No email found", Toast.LENGTH_SHORT).show()
                             showLoading(false)
+                            return@launch
                         }
+
+                        // 5. All good → go to MainActivity
+                        startActivity(Intent(this@UnlockActivity, MainActivity::class.java))
+                        finish()
+                    } catch (e: Exception) {
+                        Toast.makeText(this@UnlockActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        showLoading(false)
                     }
-                } else {
-                    showLoading(false)
-                    Toast.makeText(this, "Failed to derive key", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 Toast.makeText(this, "Wrong password", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun showEmailNotVerifiedDialog(firestore: FirestoreDataSource) {
+        AlertDialog.Builder(this)
+            .setTitle("Email Not Verified")
+            .setMessage("Please verify your email address before accessing your vault. Check your inbox (and spam folder) for the verification link.")
+            .setPositiveButton("Resend Email") { _, _ ->
+                lifecycleScope.launch {
+                    val success = firestore.sendVerificationEmail()
+                    if (success) {
+                        Toast.makeText(this@UnlockActivity, "Verification email resent. Please check your inbox.", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this@UnlockActivity, "Failed to resend email. Try again later.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showLoading(isLoading: Boolean) {

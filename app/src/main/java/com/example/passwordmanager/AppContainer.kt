@@ -26,4 +26,10 @@ class AppContainer(private val context: Context) {
     private fun isUserSignedIn(): Boolean {
         return FirebaseAuth.getInstance().currentUser != null
     }
+
+    fun clearRepository() {
+        repository = null
+        _repository = null
+        database = null
+    }
 }

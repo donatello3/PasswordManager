@@ -204,6 +204,20 @@ object CryptoManager {
         return digest.digest()
     }
 
+    fun clearSession(context: Context) {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context,
+            PREF_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        sharedPrefs.edit().clear().apply()
+    }
+
     private fun getDeterministicSalt(email: String): ByteArray {
         val md = MessageDigest.getInstance("SHA-256")
         return md.digest(email.toByteArray())
