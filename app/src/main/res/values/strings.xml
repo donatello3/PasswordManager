@@ -17,4 +17,15 @@
     <string name="username_copied">Username copied to clipboard</string>
     <string name="password_copied">Password copied to clipboard</string>
     <string name="edit_entry">Edit entry</string>
+    <string name="action_logout">Log out</string>
+    <string name="logout_confirm_title">Log out</string>
+    <string name="logout_confirm_message">Are you sure you want to log out? You will need to sign in again.</string>
+    <string name="logout_confirm_yes">Log out</string>
+
+    <string name="verify_email_title">Verify Your Email</string>
+    <string name="verify_email_message">We\'ve sent a verification link to your email address. Please verify your email before you can access your vault.\n\nIf you don\'t see the email, check your spam folder.</string>
+    <string name="email_not_verified_title">Email Not Verified</string>
+    <string name="email_not_verified_message">Please verify your email address before accessing your vault. Check your inbox (and spam folder) for the verification link we sent you.</string>
+    <string name="resend_email">Resend Email</string>
+    <string name="email_resent">Verification email resent. Please check your inbox.</string>
 </resources>
