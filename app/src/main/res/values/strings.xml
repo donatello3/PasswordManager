@@ -28,4 +28,21 @@
     <string name="email_not_verified_message">Please verify your email address before accessing your vault. Check your inbox (and spam folder) for the verification link we sent you.</string>
     <string name="resend_email">Resend Email</string>
     <string name="email_resent">Verification email resent. Please check your inbox.</string>
+
+    <!-- Navigation -->
+    <string name="nav_security">Security</string>
+
+    <!-- Security screen -->
+    <string name="security_title">Security</string>
+    <string name="biometric_unlock_title">Biometric unlock</string>
+    <string name="biometric_unlock_desc">Use fingerprint to unlock the app instead of typing your master password</string>
+    <string name="biometric_not_available">Biometric authentication is not available on this device</string>
+    <string name="biometric_not_enrolled">No fingerprints enrolled. Please add a fingerprint in device settings first</string>
+    <string name="biometric_enabled">Biometric unlock enabled</string>
+    <string name="biometric_disabled">Biometric unlock disabled</string>
+    <string name="biometric_prompt_title">Unlock K Manager</string>
+    <string name="biometric_prompt_subtitle">Use your fingerprint to unlock</string>
+    <string name="biometric_prompt_negative">Use password</string>
+    <string name="biometric_error">Biometric authentication error</string>
+    <string name="use_fingerprint">Use Fingerprint</string>
 </resources>

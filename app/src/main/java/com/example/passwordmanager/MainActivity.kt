@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.passwordmanager.data.database.PasswordEntry
 import com.example.passwordmanager.data.repository.PasswordRepository
 import com.example.passwordmanager.ui.LoginActivity
+import com.example.passwordmanager.ui.SecurityActivity
 import com.example.passwordmanager.utils.CryptoManager
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -65,6 +66,10 @@ class MainActivity : AppCompatActivity() {
         // Navigation drawer item clicks
         navigationView.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
+                R.id.nav_security -> {
+                    drawerLayout.closeDrawers()
+                    startActivity(Intent(this, SecurityActivity::class.java))
+                }
                 R.id.nav_logout -> {
                     drawerLayout.closeDrawers()
                     showLogoutConfirmation()

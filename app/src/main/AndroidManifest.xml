@@ -25,7 +25,9 @@
         <activity android:name=".MainActivity" />
         <activity android:name=".AddEditActivity" />
         <activity android:name=".PasswordDetailActivity" />
+        <activity android:name=".ui.SecurityActivity" />
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 </manifest>

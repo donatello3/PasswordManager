@@ -13,6 +13,8 @@ object CryptoManager {
     private const val KEY_SALT = "salt"
     private const val KEY_HASH = "hash"
     private const val KEY_EMAIL = "email"
+    private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+    private const val KEY_MASTER_PASSWORD_BIOMETRIC = "master_pwd_biometric"
 
     private const val ITERATIONS = 100_000
     private const val KEY_LENGTH = 256
@@ -202,6 +204,62 @@ object CryptoManager {
         digest.update(salt)
         digest.update(password.toByteArray())
         return digest.digest()
+    }
+
+    fun setBiometricEnabled(context: Context, enabled: Boolean) {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context, PREF_NAME, masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        sharedPrefs.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
+    }
+
+    fun isBiometricEnabled(context: Context): Boolean {
+        return try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            val sharedPrefs = EncryptedSharedPreferences.create(
+                context, PREF_NAME, masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+            sharedPrefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun saveMasterPasswordForBiometric(context: Context, password: String) {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val sharedPrefs = EncryptedSharedPreferences.create(
+            context, PREF_NAME, masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        sharedPrefs.edit().putString(KEY_MASTER_PASSWORD_BIOMETRIC, password).apply()
+    }
+
+    fun getMasterPasswordForBiometric(context: Context): String? {
+        return try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            val sharedPrefs = EncryptedSharedPreferences.create(
+                context, PREF_NAME, masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+            sharedPrefs.getString(KEY_MASTER_PASSWORD_BIOMETRIC, null)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun clearSession(context: Context) {
