@@ -1,19 +1,34 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Правила извлечения данных для Android 12+ (API 31+).
+    Распространяется как на Google Cloud Backup, так и на перенос между устройствами (Device Transfer).
+    Логика та же, что и в backup_rules.xml: все локальные данные device-specific,
+    пользовательский контент восстанавливается из Firebase Firestore при входе.
 -->
 <data-extraction-rules>
-    <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
-    </cloud-backup>
+
     <!--
-    <device-transfer>
-        <include .../>
-        <exclude .../>
-    </device-transfer>
+        Cloud Backup (Google One / Auto Backup).
+        disableIfNoEncryptionCapabilities="true" — не делаем бэкап,
+        если устройство не может зашифровать данные на сервере.
     -->
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+
+    <!--
+        Device Transfer (перенос данных через кабель / Bluetooth при смене устройства).
+        Также исключаем: ключ Keystore на новом устройстве будет другим,
+        поэтому перенесённые зашифрованные данные будут нечитаемы.
+    -->
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+
 </data-extraction-rules>

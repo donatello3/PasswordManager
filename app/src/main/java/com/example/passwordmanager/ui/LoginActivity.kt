@@ -46,6 +46,13 @@ class LoginActivity : AppCompatActivity() {
                     } else {
                         Toast.makeText(this@LoginActivity, "Firebase login failed", Toast.LENGTH_SHORT).show()
                     }
+                } catch (e: Exception) {
+                    android.util.Log.e("LoginActivity", "Login error", e)
+                    Toast.makeText(
+                        this@LoginActivity,
+                        "Login error. Please try again.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 } finally {
                     showLoading(false)
                 }
