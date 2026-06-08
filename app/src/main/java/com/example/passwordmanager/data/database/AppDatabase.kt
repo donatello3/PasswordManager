@@ -16,18 +16,34 @@ abstract class AppDatabase : RoomDatabase(){
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private const val DB_NAME = "password_manager.db"
+
         fun getInstance(context: Context, passphrase: ByteArray): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val factory = SupportFactory(passphrase)
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "password_manager.db"
-                )
-                    .openHelperFactory(factory)
-                    .build()
-                INSTANCE = instance
-                instance
+                INSTANCE ?: run {
+                    val factory = SupportFactory(passphrase)
+                    val instance = Room.databaseBuilder(
+                        context.applicationContext,
+                        AppDatabase::class.java,
+                        DB_NAME
+                    )
+                        .openHelperFactory(factory)
+                        .build()
+                    INSTANCE = instance
+                    instance
+                }
+            }
+        }
+
+        /**
+         * Закрывает текущий экземпляр БД, удаляет файл и сбрасывает синглтон.
+         * Вызывать при выходе из аккаунта или обнаружении повреждённой БД.
+         */
+        fun resetInstance(context: Context) {
+            synchronized(this) {
+                try { INSTANCE?.close() } catch (_: Exception) {}
+                INSTANCE = null
+                try { context.applicationContext.deleteDatabase(DB_NAME) } catch (_: Exception) {}
             }
         }
     }

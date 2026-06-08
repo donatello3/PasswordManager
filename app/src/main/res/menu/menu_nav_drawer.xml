@@ -3,6 +3,10 @@
 
     <group android:checkableBehavior="none">
         <item
+            android:id="@+id/nav_security"
+            android:icon="@drawable/ic_security"
+            android:title="@string/nav_security" />
+        <item
             android:id="@+id/nav_logout"
             android:icon="@drawable/ic_logout"
             android:title="@string/action_logout" />

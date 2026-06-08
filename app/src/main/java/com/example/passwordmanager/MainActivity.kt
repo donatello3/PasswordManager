@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.passwordmanager.data.database.PasswordEntry
 import com.example.passwordmanager.data.repository.PasswordRepository
 import com.example.passwordmanager.ui.LoginActivity
+import com.example.passwordmanager.ui.SecurityActivity
 import com.example.passwordmanager.utils.CryptoManager
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -65,6 +66,10 @@ class MainActivity : AppCompatActivity() {
         // Navigation drawer item clicks
         navigationView.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
+                R.id.nav_security -> {
+                    drawerLayout.closeDrawers()
+                    startActivity(Intent(this, SecurityActivity::class.java))
+                }
                 R.id.nav_logout -> {
                     drawerLayout.closeDrawers()
                     showLogoutConfirmation()
@@ -150,10 +155,30 @@ class MainActivity : AppCompatActivity() {
     private fun observeData() {
         showLoading(true)
         lifecycleScope.launch {
-            repository?.getAllPasswords()?.collect { passwords ->
-                allPasswords = passwords
-                filterPasswords()
+            try {
+                repository?.getAllPasswords()?.collect { passwords ->
+                    allPasswords = passwords
+                    filterPasswords()
+                    showLoading(false)
+                }
+            } catch (e: android.database.sqlite.SQLiteException) {
+                // База данных недоступна (неверный ключ, повреждён файл или восстановлен backup).
+                // Удаляем БД и перенаправляем на экран входа — пользователь повторно войдёт
+                // и данные будут синхронизированы из Firebase.
+                android.util.Log.e("MainActivity", "Database error, resetting: ${e.message}", e)
                 showLoading(false)
+                val app = application as PasswordManagerApplication
+                app.currentMasterPassword = ""
+                com.example.passwordmanager.data.database.AppDatabase.resetInstance(this@MainActivity)
+                app.appContainer.repository = null
+                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                com.example.passwordmanager.utils.CryptoManager.clearSession(this@MainActivity)
+                startActivity(
+                    Intent(this@MainActivity, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                )
+                finish()
             }
         }
     }

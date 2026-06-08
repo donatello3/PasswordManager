@@ -30,6 +30,7 @@ class AppContainer(private val context: Context) {
     fun clearRepository() {
         repository = null
         _repository = null
+        AppDatabase.resetInstance(context)
         database = null
     }
 }

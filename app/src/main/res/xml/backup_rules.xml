@@ -1,13 +1,20 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Правила Auto Backup для Android 6–11 (API 23–30).
+    Для менеджера паролей мы исключаем ВСЕ локальные данные из бэкапа:
+    - SharedPreferences содержат зашифрованный хеш мастер-пароля, привязанный
+      к ключу Android Keystore конкретного устройства. После переустановки
+      или восстановления на другом устройстве эти данные нерабочие.
+    - База данных зашифрована SQLCipher-ключом, который также device-specific.
+    - Всё пользовательское содержимое синхронизируется через Firebase Firestore.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Запрещаем бэкап всех SharedPreferences (crypto_prefs и другие) -->
+    <exclude domain="sharedpref" path="." />
+    <!-- Запрещаем бэкап базы данных -->
+    <exclude domain="database" path="." />
+    <!-- Запрещаем бэкап внутренних файлов -->
+    <exclude domain="file" path="." />
+    <!-- Запрещаем бэкап external-файлов приложения -->
+    <exclude domain="external" path="." />
 </full-backup-content>

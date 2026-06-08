@@ -39,6 +39,15 @@
         android:layout_marginTop="24dp"
         android:text="Unlock"/>
 
+    <Button
+        android:id="@+id/btnBiometric"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/use_fingerprint"
+        android:visibility="gone" />
+
 </LinearLayout>
 
     <FrameLayout

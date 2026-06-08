@@ -86,4 +86,7 @@ dependencies {
 
 // Gson for JSON conversion (to encrypt whole object)
     implementation(libs.gson)
+
+    // Biometric authentication
+    implementation(libs.androidx.biometric)
 }
