@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.passwordmanager"
+    namespace = "io.kmanager.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.passwordmanager"
+        applicationId = "io.kmanager.app"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
