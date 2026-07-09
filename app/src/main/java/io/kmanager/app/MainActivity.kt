@@ -2,6 +2,7 @@ package io.kmanager.app
 
 import android.content.Intent
 import android.database.sqlite.SQLiteException
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -79,6 +80,11 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_logout -> {
                     drawerLayout.closeDrawers()
                     showLogoutConfirmation()
+                }
+                R.id.nav_privacy_policy -> {
+                    drawerLayout.closeDrawers()
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://donatello3.github.io/k-manager-privacy-policy/"))
+                    startActivity(intent)
                 }
             }
             true

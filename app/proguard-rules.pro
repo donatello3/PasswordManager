@@ -8,7 +8,11 @@
 -dontwarn net.sqlcipher.**
 
 # Keep Firebase classes
--keep class com.google.firebase.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepnames class com.google.firebase.** { *; }
+-keepnames class com.google.android.gms.tasks.** { *; }
+-keep class com.google.android.gms.common.api.internal.IStatusCallback
 -dontwarn com.google.firebase.**
 
 # Keep GSON (reflection)
