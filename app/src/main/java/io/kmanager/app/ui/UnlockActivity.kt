@@ -131,7 +131,7 @@ class UnlockActivity : AppCompatActivity() {
                 }
 
                 val app = application as PasswordManagerApplication
-                app.currentMasterPassword = password
+                app.currentMasterPassword = password.toCharArray()
                 app.appContainer.provideRepository(key)
                 app.appContainer.repository?.syncPasswordsFromRemote()
 

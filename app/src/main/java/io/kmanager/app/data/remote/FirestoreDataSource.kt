@@ -23,10 +23,12 @@ class FirestoreDataSource(private val context: Context) {
         }
     }
 
-    suspend fun uploadEntry(entry: PasswordEntry, masterPassword: String): String? {
+    suspend fun uploadEntry(entry: PasswordEntry, masterPassword: CharArray?): String? {
         if (!entry.syncEnabled) return null
         val email = currentUserEmail ?: return null
-        val encrypted = EncryptionManager.encryptEntry(context, entry, masterPassword) ?: return null
+        if (masterPassword == null || masterPassword.isEmpty()) return null
+        val passwordString = String(masterPassword)
+        val encrypted = EncryptionManager.encryptEntry(context, entry, passwordString) ?: return null
         val data = mapOf(
             "encryptedData" to encrypted,
             "lastModified" to entry.lastModified
@@ -56,8 +58,10 @@ class FirestoreDataSource(private val context: Context) {
         }
     }
 
-    suspend fun fetchAllEntries(masterPassword: String): List<PasswordEntry> {
+    suspend fun fetchAllEntries(masterPassword: CharArray?): List<PasswordEntry> {
         val email = currentUserEmail ?: return emptyList()
+        if (masterPassword == null || masterPassword.isEmpty()) return emptyList()
+        val passwordString = String(masterPassword)
         val snapshot = try {
             db.collection("users").document(email).collection("passwords").get().await()
         } catch (e: Exception) {
@@ -69,7 +73,7 @@ class FirestoreDataSource(private val context: Context) {
             val encrypted = doc.getString("encryptedData") ?: continue
             val lastModifiedRemote = doc.getLong("lastModified") ?: 0
             try {
-                val entry = EncryptionManager.decryptEntry(context, encrypted, masterPassword)
+                val entry = EncryptionManager.decryptEntry(context, encrypted, passwordString)
                 if (entry != null) {
                     entries.add(entry.copy(remoteId = doc.id, lastModified = lastModifiedRemote))
                 }

@@ -66,15 +66,15 @@ class PasswordRepository(private val dao: PasswordDao,
         }
     }
 
-    private fun getMasterPassword(): String {
-        return (context as? PasswordManagerApplication)?.currentMasterPassword ?: ""
+    private fun getMasterPassword(): CharArray? {
+        return (context as? PasswordManagerApplication)?.currentMasterPassword
     }
     suspend fun getPasswordById(id: Long): PasswordEntry? = dao.getPasswordById(id)
 
     suspend fun syncPasswordsFromRemote() {
         if (remoteDataSource == null) return
         val masterPassword = getMasterPassword()
-        if (masterPassword.isEmpty()) return
+        if (masterPassword == null || masterPassword.isEmpty()) return
 
         val remoteEntries = remoteDataSource.fetchAllEntries(masterPassword)
         for (remoteEntry in remoteEntries) {

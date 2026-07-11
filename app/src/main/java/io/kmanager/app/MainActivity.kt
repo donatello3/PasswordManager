@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity() {
     private fun performLogout() {
         FirebaseAuth.getInstance().signOut()
         val app = application as PasswordManagerApplication
-        app.currentMasterPassword = ""
+        app.clearMasterPassword()
         app.appContainer.clearRepository()
         CryptoManager.clearSession(this)
         val intent = Intent(this, LoginActivity::class.java).apply {
@@ -180,7 +180,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e("MainActivity", "Database error, resetting: ${e.message}", e)
                 showLoading(false)
                 val app = application as PasswordManagerApplication
-                app.currentMasterPassword = ""
+                app.clearMasterPassword()
                 AppDatabase.resetInstance(this@MainActivity)
                 app.appContainer.repository = null
                 FirebaseAuth.getInstance().signOut()
@@ -234,4 +234,3 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 }
-

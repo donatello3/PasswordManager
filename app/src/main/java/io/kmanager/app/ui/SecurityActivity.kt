@@ -71,40 +71,40 @@ class SecurityActivity : AppCompatActivity() {
 
     private fun showBiometricEnrollPrompt() {
         val masterPassword = (application as PasswordManagerApplication).currentMasterPassword
-        if (masterPassword.isEmpty()) {
+        if (masterPassword == null || masterPassword.isEmpty()) {
             Toast.makeText(this, "Session expired. Please re-open the app.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val executor = ContextCompat.getMainExecutor(this)
-        val callback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                // Save master password and enable biometric
-                CryptoManager.saveMasterPasswordForBiometric(this@SecurityActivity, masterPassword)
-                CryptoManager.setBiometricEnabled(this@SecurityActivity, true)
-                switchBiometric.isChecked = true
-                Toast.makeText(this@SecurityActivity, getString(R.string.biometric_enabled), Toast.LENGTH_SHORT).show()
-            }
-
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                super.onAuthenticationError(errorCode, errString)
-                // User cancelled or error — don't change state
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                Toast.makeText(this@SecurityActivity, getString(R.string.biometric_error), Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        val biometricPrompt = BiometricPrompt(this, executor, callback)
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(getString(R.string.biometric_prompt_title))
             .setSubtitle(getString(R.string.biometric_prompt_subtitle))
             .setNegativeButtonText(getString(R.string.cancel))
             .setAllowedAuthenticators(BIOMETRIC_WEAK)
             .build()
+
+        val biometricPrompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    masterPassword?.let {
+                        CryptoManager.saveMasterPasswordForBiometric(this@SecurityActivity, String(it))
+                        CryptoManager.setBiometricEnabled(this@SecurityActivity, true)
+                        switchBiometric.isChecked = true
+                        Toast.makeText(this@SecurityActivity, "Biometric unlock enabled", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    // User cancelled or error — don't change state
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    Toast.makeText(this@SecurityActivity, getString(R.string.biometric_error), Toast.LENGTH_SHORT).show()
+                }
+            })
 
         biometricPrompt.authenticate(promptInfo)
     }
@@ -115,4 +115,3 @@ class SecurityActivity : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.biometric_disabled), Toast.LENGTH_SHORT).show()
     }
 }
-
