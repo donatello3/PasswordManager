@@ -38,8 +38,19 @@ class LoginActivity : AppCompatActivity() {
                     val success = firestore.signInWithEmail(email, password)
 
                     if (success) {
+                        // Получаем соль из Firestore.
+                        // Если соли нет (старый аккаунт до миграции) — используем
+                        // детерминированную соль и сразу загружаем её, чтобы
+                        // последующие входы с других устройств работали корректно.
+                        var salt = firestore.downloadUserSalt()
+                        if (salt == null) {
+                            Log.w("LoginActivity", "Salt not found in Firestore, migrating legacy account")
+                            salt = CryptoManager.getLegacySalt(email)
+                            firestore.uploadUserSalt(salt)
+                        }
+
                         // Сохраняем локальные данные для разблокировки (UnlockActivity)
-                        CryptoManager.setupAccount(this@LoginActivity, email, password)
+                        CryptoManager.setupAccount(this@LoginActivity, email, password, salt)
 
                         Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
                         startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))

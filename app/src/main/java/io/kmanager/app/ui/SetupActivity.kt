@@ -47,8 +47,10 @@ class SetupActivity : AppCompatActivity() {
 
             showLoading(true)
 
-            // Store email + password, derive key
-            val key = CryptoManager.setupAccount(this, email, password)
+            // Генерируем случайную соль — она будет использована локально
+            // и загружена в Firestore, чтобы оставаться единой на всех устройствах.
+            val salt = CryptoManager.generateSalt()
+            val key = CryptoManager.setupAccount(this, email, password, salt)
 
             val firestore = FirestoreDataSource(this)
             lifecycleScope.launch {
@@ -56,6 +58,9 @@ class SetupActivity : AppCompatActivity() {
                     val success = firestore.signUpWithEmail(email, password)
 
                     if (success) {
+                        // Загружаем соль в Firestore (пользователь уже авторизован после signUp)
+                        firestore.uploadUserSalt(salt)
+
                         Toast.makeText(this@SetupActivity, "Account created! Please unlock.", Toast.LENGTH_SHORT).show()
                         // Send verification email
                         val emailSent = firestore.sendVerificationEmail()

@@ -111,9 +111,31 @@ object CryptoManager {
         return key
     }
 
-    fun setupAccount(context: Context, email: String, password: String): ByteArray {
-        val salt = getDeterministicSalt(email)
+    /**
+     * Генерирует криптографически случайную соль (32 байта).
+     */
+    fun generateSalt(): ByteArray {
+        val salt = ByteArray(32)
+        SecureRandom().nextBytes(salt)
+        return salt
+    }
 
+    /**
+     * Детерминированная соль на основе email — используется ТОЛЬКО для миграции
+     * существующих аккаунтов, у которых соль ещё не сохранена в Firestore.
+     */
+    fun getLegacySalt(email: String): ByteArray {
+        val md = MessageDigest.getInstance("SHA-256")
+        return md.digest(email.toByteArray())
+    }
+
+    /**
+     * Настраивает локальный аккаунт с явно переданной солью.
+     * Соль должна быть получена из Firestore (при входе) либо сгенерирована
+     * при регистрации и после этого загружена в Firestore, чтобы обеспечить
+     * одинаковое шифрование на всех устройствах пользователя.
+     */
+    fun setupAccount(context: Context, email: String, password: String, salt: ByteArray): ByteArray {
         // Derive key from password
         val key = deriveKey(password, salt)
 
@@ -280,8 +302,4 @@ object CryptoManager {
         }
     }
 
-    private fun getDeterministicSalt(email: String): ByteArray {
-        val md = MessageDigest.getInstance("SHA-256")
-        return md.digest(email.toByteArray())
-    }
 }

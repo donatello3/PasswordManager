@@ -1,6 +1,7 @@
 package io.kmanager.app.data.remote
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.utils.EncryptionManager
@@ -87,6 +88,43 @@ class FirestoreDataSource(private val context: Context) {
             }
         }
         return entries
+    }
+
+    /**
+     * Загружает соль пользователя в Firestore (документ users/{email}/metadata/crypto).
+     * Соль не является секретом — она защищена Firebase Auth-правилами.
+     */
+    suspend fun uploadUserSalt(salt: ByteArray): Boolean {
+        val email = currentUserEmail ?: return false
+        return try {
+            val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            db.collection("users").document(email)
+                .collection("metadata").document("crypto")
+                .set(mapOf("salt" to saltBase64))
+                .await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadUserSalt failed", e)
+            false
+        }
+    }
+
+    /**
+     * Скачивает соль пользователя из Firestore.
+     * Возвращает null, если соль ещё не сохранена (старый аккаунт — требует миграции).
+     */
+    suspend fun downloadUserSalt(): ByteArray? {
+        val email = currentUserEmail ?: return null
+        return try {
+            val doc = db.collection("users").document(email)
+                .collection("metadata").document("crypto")
+                .get().await()
+            val saltBase64 = doc.getString("salt") ?: return null
+            Base64.decode(saltBase64, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadUserSalt failed", e)
+            null
+        }
     }
 
     suspend fun signUpWithEmail(email: String, password: String): Boolean {
