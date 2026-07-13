@@ -1,6 +1,7 @@
 package io.kmanager.app.data.remote
 
 import android.content.Context
+import android.util.Log
 import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.utils.EncryptionManager
 import com.google.firebase.auth.FirebaseAuth
@@ -13,12 +14,16 @@ class FirestoreDataSource(private val context: Context) {
     private val currentUserEmail: String?
         get() = auth.currentUser?.email
 
+    companion object {
+        private const val TAG = "FirestoreDataSource"
+    }
+
     suspend fun signInWithEmail(email: String, password: String): Boolean {
         return try {
             auth.signInWithEmailAndPassword(email, password).await()
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "signInWithEmail failed", e)
             false
         }
     }
@@ -42,7 +47,7 @@ class FirestoreDataSource(private val context: Context) {
             docRef.set(data).await()
             docRef.id
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "uploadEntry failed", e)
             null
         }
     }
@@ -54,7 +59,7 @@ class FirestoreDataSource(private val context: Context) {
             db.collection("users").document(email).collection("passwords")
                 .document(entry.remoteId).delete().await()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "deleteRemoteEntry failed", e)
         }
     }
 
@@ -65,7 +70,7 @@ class FirestoreDataSource(private val context: Context) {
         val snapshot = try {
             db.collection("users").document(email).collection("passwords").get().await()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "fetchAllEntries failed", e)
             return emptyList()
         }
         val entries = mutableListOf<PasswordEntry>()
@@ -78,7 +83,7 @@ class FirestoreDataSource(private val context: Context) {
                     entries.add(entry.copy(remoteId = doc.id, lastModified = lastModifiedRemote))
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Decryption failed for document ${doc.id}", e)
             }
         }
         return entries
@@ -90,7 +95,7 @@ class FirestoreDataSource(private val context: Context) {
             auth.createUserWithEmailAndPassword(email, password).await()
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "signUpWithEmail failed", e)
             false
         }
     }
@@ -100,7 +105,7 @@ class FirestoreDataSource(private val context: Context) {
             auth.currentUser?.sendEmailVerification()?.await()
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "sendVerificationEmail failed", e)
             false
         }
     }
@@ -111,6 +116,7 @@ class FirestoreDataSource(private val context: Context) {
             auth.currentUser?.reload()?.await()
             auth.currentUser?.isEmailVerified == true
         } catch (e: Exception) {
+            Log.e(TAG, "isEmailVerified check failed", e)
             false
         }
     }

@@ -41,9 +41,15 @@
 -keep class androidx.work.** { *; }
 -dontwarn androidx.work.**
 
-# Remove debug logs (optional obfuscation)
+# Strip ALL Android Log calls in release.
+# Note: e.printStackTrace() cannot be removed by ProGuard (it's a JVM method),
+# so all logging must use Log.* to be stripped here.
 -assumenosideeffects class android.util.Log {
-    public static *** d(...);
     public static *** v(...);
+    public static *** d(...);
     public static *** i(...);
+    public static *** w(...);
+    public static *** e(...);
+    public static *** wtf(...);
+    public static *** println(...);
 }

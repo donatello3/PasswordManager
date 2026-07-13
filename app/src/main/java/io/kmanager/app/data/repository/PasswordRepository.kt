@@ -1,6 +1,7 @@
 package io.kmanager.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import io.kmanager.app.PasswordManagerApplication
 import io.kmanager.app.data.database.PasswordDao
 import io.kmanager.app.data.database.PasswordEntry
@@ -10,6 +11,10 @@ import kotlinx.coroutines.flow.Flow
 class PasswordRepository(private val dao: PasswordDao,
                          private val remoteDataSource: FirestoreDataSource? = null,
                          private val context: Context) {
+    companion object {
+        private const val TAG = "PasswordRepository"
+    }
+
     fun getAllPasswords(): Flow<List<PasswordEntry>> = dao.getAllPasswords()
     fun searchPasswords(query: String): Flow<List<PasswordEntry>> = dao.searchPasswords(query)
     fun getPasswordsByCategory(category: String): Flow<List<PasswordEntry>> = dao.getPasswordsByCategory(category)
@@ -26,7 +31,7 @@ class PasswordRepository(private val dao: PasswordDao,
                     dao.update(entryWithId.copy(remoteId = remoteId))
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "insert: failed to sync to remote", e)
             }
         }
     }
@@ -40,14 +45,14 @@ class PasswordRepository(private val dao: PasswordDao,
                 val entryToSave = if (remoteId != null) entry.copy(remoteId = remoteId) else entry
                 dao.update(entryToSave)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "update: failed to sync to remote", e)
                 dao.update(entry)
             }
         } else if (!entry.syncEnabled && oldEntry?.remoteId != null && remoteDataSource != null) {
             try {
                 remoteDataSource.deleteRemoteEntry(oldEntry)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "update: failed to delete remote entry", e)
             }
             dao.update(entry.copy(remoteId = null))
         } else {
@@ -61,7 +66,7 @@ class PasswordRepository(private val dao: PasswordDao,
             try {
                 remoteDataSource.deleteRemoteEntry(entry)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "delete: failed to delete remote entry", e)
             }
         }
     }
