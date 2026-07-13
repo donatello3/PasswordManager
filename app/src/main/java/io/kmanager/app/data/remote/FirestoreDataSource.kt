@@ -8,6 +8,7 @@ import io.kmanager.app.utils.EncryptionManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 class FirestoreDataSource(private val context: Context) {
     private val auth = FirebaseAuth.getInstance()
@@ -98,10 +99,12 @@ class FirestoreDataSource(private val context: Context) {
         val email = currentUserEmail ?: return false
         return try {
             val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
-            db.collection("users").document(email)
-                .collection("metadata").document("crypto")
-                .set(mapOf("salt" to saltBase64))
-                .await()
+            withTimeout(15_000L) {
+                db.collection("users").document(email)
+                    .collection("metadata").document("crypto")
+                    .set(mapOf("salt" to saltBase64))
+                    .await()
+            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "uploadUserSalt failed", e)
@@ -116,9 +119,11 @@ class FirestoreDataSource(private val context: Context) {
     suspend fun downloadUserSalt(): ByteArray? {
         val email = currentUserEmail ?: return null
         return try {
-            val doc = db.collection("users").document(email)
-                .collection("metadata").document("crypto")
-                .get().await()
+            val doc = withTimeout(15_000L) {
+                db.collection("users").document(email)
+                    .collection("metadata").document("crypto")
+                    .get().await()
+            }
             val saltBase64 = doc.getString("salt") ?: return null
             Base64.decode(saltBase64, Base64.NO_WRAP)
         } catch (e: Exception) {

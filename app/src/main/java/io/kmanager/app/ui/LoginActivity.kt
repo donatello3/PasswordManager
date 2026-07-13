@@ -10,6 +10,8 @@ import io.kmanager.app.data.remote.FirestoreDataSource
 import io.kmanager.app.databinding.ActivityLoginBinding
 import io.kmanager.app.utils.CryptoManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import android.view.View
 
 class LoginActivity : AppCompatActivity() {
@@ -49,8 +51,11 @@ class LoginActivity : AppCompatActivity() {
                             firestore.uploadUserSalt(salt)
                         }
 
-                        // Сохраняем локальные данные для разблокировки (UnlockActivity)
-                        CryptoManager.setupAccount(this@LoginActivity, email, password, salt)
+                        // Сохраняем локальные данные для разблокировки (UnlockActivity).
+                        // Запускаем на IO-потоке — PBKDF2 с 100k итерациями блокирует Main thread.
+                        withContext(Dispatchers.IO) {
+                            CryptoManager.setupAccount(this@LoginActivity, email, password, salt)
+                        }
 
                         Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
                         startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))

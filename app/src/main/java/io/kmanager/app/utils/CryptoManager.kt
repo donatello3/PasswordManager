@@ -1,14 +1,23 @@
 package io.kmanager.app.utils
 import android.content.Context
 import android.content.SharedPreferences
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.io.File
+import java.security.InvalidKeyException
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 
 object CryptoManager {
@@ -20,6 +29,13 @@ object CryptoManager {
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
     private const val KEY_MASTER_PASSWORD_BIOMETRIC = "master_pwd_biometric"
     private const val MASTER_KEY_ALIAS = "_androidx_security_master_key"
+
+    // Biometric-bound Keystore key for encrypting the master password
+    private const val BIOMETRIC_KEY_ALIAS = "kmanager_biometric_key"
+    private const val BIOMETRIC_PREFS_NAME = "biometric_prefs"
+    private const val BIOMETRIC_KEY_IV = "biometric_iv"
+    private const val BIOMETRIC_KEY_CIPHERTEXT = "biometric_ciphertext"
+    private const val GCM_TAG_LENGTH = 128
 
     private const val ITERATIONS = 100_000
     private const val KEY_LENGTH = 256
@@ -277,21 +293,139 @@ object CryptoManager {
         }
     }
 
-    fun saveMasterPasswordForBiometric(context: Context, password: String) {
-        try {
-            getEncryptedPrefs(context).edit().putString(KEY_MASTER_PASSWORD_BIOMETRIC, password).apply()
-        } catch (e: Exception) {
-            Log.e(TAG, "saveMasterPasswordForBiometric failed", e)
-        }
+    // ── Biometric-bound Keystore key ─────────────────────────────────────────
+
+    /**
+     * Creates (or retrieves) a Keystore AES-GCM key that requires biometric authentication
+     * to use. Even on a rooted device, this key cannot be used without the user's fingerprint.
+     */
+    private fun getOrCreateBiometricKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").also { it.load(null) }
+        keyStore.getKey(BIOMETRIC_KEY_ALIAS, null)?.let { return it as SecretKey }
+
+        val keyGen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        keyGen.init(
+            KeyGenParameterSpec.Builder(
+                BIOMETRIC_KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setUserAuthenticationRequired(true)
+                // Invalidate key if new biometrics are enrolled — forces re-setup
+                .setInvalidatedByBiometricEnrollment(true)
+                .build()
+        )
+        return keyGen.generateKey()
     }
 
-    fun getMasterPasswordForBiometric(context: Context): String? {
+    /**
+     * Returns a Cipher ready for encryption (new random IV).
+     * Pass this as CryptoObject to BiometricPrompt.
+     * After successful biometric auth, call [encryptWithCipher].
+     */
+    fun prepareBiometricEncryptCipher(): Cipher {
+        val key = getOrCreateBiometricKey()
+        val cipher = Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_GCM}/${KeyProperties.ENCRYPTION_PADDING_NONE}")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        return cipher
+    }
+
+    /**
+     * Returns a Cipher ready for decryption using the stored IV.
+     * Pass this as CryptoObject to BiometricPrompt.
+     * After successful biometric auth, call [decryptWithCipher].
+     *
+     * Returns null if:
+     * - no encrypted password is stored yet
+     * - the biometric key has been invalidated (new biometrics enrolled)
+     */
+    fun prepareBiometricDecryptCipher(context: Context): Cipher? {
+        val iv = getBiometricIv(context) ?: return null
         return try {
-            getEncryptedPrefs(context).getString(KEY_MASTER_PASSWORD_BIOMETRIC, null)
-        } catch (e: Exception) {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore").also { it.load(null) }
+            val key = keyStore.getKey(BIOMETRIC_KEY_ALIAS, null) as? SecretKey ?: return null
+            val cipher = Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_GCM}/${KeyProperties.ENCRYPTION_PADDING_NONE}")
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+            cipher
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            Log.w(TAG, "Biometric key invalidated (new biometrics enrolled). Disabling biometric unlock.")
+            clearBiometricData(context)
+            null
+        } catch (e: InvalidKeyException) {
+            Log.w(TAG, "Biometric key invalid, disabling biometric unlock", e)
+            clearBiometricData(context)
             null
         }
     }
+
+    /**
+     * Encrypts [password] with the authenticated [cipher] and stores ciphertext + IV.
+     * Call only from BiometricPrompt.AuthenticationCallback.onAuthenticationSucceeded.
+     */
+    fun encryptWithCipher(context: Context, cipher: Cipher, password: String) {
+        val encrypted = cipher.doFinal(password.toByteArray(Charsets.UTF_8))
+        val iv = cipher.iv
+        getBiometricPrefs(context).edit()
+            .putString(BIOMETRIC_KEY_IV, Base64.encodeToString(iv, Base64.NO_WRAP))
+            .putString(BIOMETRIC_KEY_CIPHERTEXT, Base64.encodeToString(encrypted, Base64.NO_WRAP))
+            .apply()
+    }
+
+    /**
+     * Decrypts and returns the master password using the authenticated [cipher].
+     * Call only from BiometricPrompt.AuthenticationCallback.onAuthenticationSucceeded.
+     */
+    fun decryptWithCipher(context: Context, cipher: Cipher): String? {
+        val ciphertext = getBiometricCiphertext(context) ?: return null
+        return try {
+            String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.e(TAG, "decryptWithCipher failed", e)
+            null
+        }
+    }
+
+    fun hasBiometricPasswordStored(context: Context): Boolean {
+        return getBiometricIv(context) != null && getBiometricCiphertext(context) != null
+    }
+
+    private fun getBiometricIv(context: Context): ByteArray? {
+        val str = getBiometricPrefs(context).getString(BIOMETRIC_KEY_IV, null) ?: return null
+        return Base64.decode(str, Base64.NO_WRAP)
+    }
+
+    private fun getBiometricCiphertext(context: Context): ByteArray? {
+        val str = getBiometricPrefs(context).getString(BIOMETRIC_KEY_CIPHERTEXT, null) ?: return null
+        return Base64.decode(str, Base64.NO_WRAP)
+    }
+
+    private fun getBiometricPrefs(context: Context): SharedPreferences {
+        return context.getSharedPreferences(BIOMETRIC_PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    fun clearBiometricData(context: Context) {
+        getBiometricPrefs(context).edit().clear().apply()
+        setBiometricEnabled(context, false)
+        try {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore").also { it.load(null) }
+            if (keyStore.containsAlias(BIOMETRIC_KEY_ALIAS)) keyStore.deleteEntry(BIOMETRIC_KEY_ALIAS)
+        } catch (e: Exception) {
+            Log.e(TAG, "clearBiometricData: failed to delete key", e)
+        }
+    }
+
+    // ── Legacy — kept for migration compatibility, will be cleaned up ─────────
+
+    @Deprecated("Use encryptWithCipher / decryptWithCipher instead")
+    fun saveMasterPasswordForBiometric(context: Context, password: String) {
+        // No-op: replaced by biometric-bound key approach
+        Log.w(TAG, "saveMasterPasswordForBiometric called — this is a no-op, migrate to encryptWithCipher")
+    }
+
+    @Deprecated("Use prepareBiometricDecryptCipher + decryptWithCipher instead")
+    fun getMasterPasswordForBiometric(context: Context): String? = null
 
     fun clearSession(context: Context) {
         try {

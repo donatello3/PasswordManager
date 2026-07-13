@@ -2,12 +2,13 @@ package io.kmanager.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -20,6 +21,10 @@ import io.kmanager.app.utils.CryptoManager
 import kotlinx.coroutines.launch
 
 class UnlockActivity : AppCompatActivity() {
+
+    private companion object {
+        private const val TAG = "UnlockActivity"
+    }
 
     private lateinit var binding: ActivityUnlockBinding
 
@@ -48,23 +53,36 @@ class UnlockActivity : AppCompatActivity() {
 
     private fun setupBiometric() {
         val biometricEnabled = CryptoManager.isBiometricEnabled(this)
-        val storedPassword = CryptoManager.getMasterPasswordForBiometric(this)
-        val canAuth = BiometricManager.from(this).canAuthenticate(BIOMETRIC_WEAK)
+        val hasStored = CryptoManager.hasBiometricPasswordStored(this)
+        val canAuth = BiometricManager.from(this).canAuthenticate(BIOMETRIC_STRONG)
 
-        if (biometricEnabled && storedPassword != null && canAuth == BiometricManager.BIOMETRIC_SUCCESS) {
+        if (biometricEnabled && hasStored && canAuth == BiometricManager.BIOMETRIC_SUCCESS) {
             binding.btnBiometric.visibility = View.VISIBLE
             binding.btnBiometric.setOnClickListener { showBiometricPrompt() }
-            // Auto-show prompt on screen open
             showBiometricPrompt()
         }
     }
 
     private fun showBiometricPrompt() {
+        // Prepare the decrypt cipher using the stored IV
+        val decryptCipher = CryptoManager.prepareBiometricDecryptCipher(this)
+        if (decryptCipher == null) {
+            // Key was invalidated (new biometrics enrolled) — biometric auto-disabled
+            Toast.makeText(this, "Biometric data cleared. Please re-enable in Security settings.", Toast.LENGTH_LONG).show()
+            binding.btnBiometric.visibility = View.GONE
+            return
+        }
+
         val executor = ContextCompat.getMainExecutor(this)
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
-                val password = CryptoManager.getMasterPasswordForBiometric(this@UnlockActivity)
+                val cipher = result.cryptoObject?.cipher
+                if (cipher == null) {
+                    Toast.makeText(this@UnlockActivity, "Biometric cipher unavailable", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                val password = CryptoManager.decryptWithCipher(this@UnlockActivity, cipher)
                 if (password != null) {
                     proceedWithPassword(password)
                 } else {
@@ -74,7 +92,7 @@ class UnlockActivity : AppCompatActivity() {
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                // User cancelled — no action needed, password field is available
+                // User cancelled — password field available
             }
 
             override fun onAuthenticationFailed() {
@@ -87,10 +105,11 @@ class UnlockActivity : AppCompatActivity() {
             .setTitle(getString(R.string.biometric_prompt_title))
             .setSubtitle(getString(R.string.biometric_prompt_subtitle))
             .setNegativeButtonText(getString(R.string.biometric_prompt_negative))
-            .setAllowedAuthenticators(BIOMETRIC_WEAK)
+            .setAllowedAuthenticators(BIOMETRIC_STRONG)
             .build()
 
-        BiometricPrompt(this, executor, callback).authenticate(promptInfo)
+        BiometricPrompt(this, executor, callback)
+            .authenticate(promptInfo, BiometricPrompt.CryptoObject(decryptCipher))
     }
 
     // ── Core unlock flow ─────────────────────────────────────────────────────

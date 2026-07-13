@@ -1,11 +1,12 @@
 package io.kmanager.app.ui
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import io.kmanager.app.PasswordManagerApplication
@@ -15,6 +16,10 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 class SecurityActivity : AppCompatActivity() {
+
+    private companion object {
+        private const val TAG = "SecurityActivity"
+    }
 
     private lateinit var switchBiometric: SwitchMaterial
     private lateinit var biometricSettingRow: LinearLayout
@@ -30,9 +35,9 @@ class SecurityActivity : AppCompatActivity() {
         switchBiometric = findViewById(R.id.switchBiometric)
         biometricSettingRow = findViewById(R.id.biometricSettingRow)
 
-        val biometricStatus = checkBiometricAvailability()
+        // We require BIOMETRIC_STRONG because we use a CryptoObject (biometric-bound key).
+        val biometricStatus = BiometricManager.from(this).canAuthenticate(BIOMETRIC_STRONG)
 
-        // Disable the row if biometrics are not available/enrolled
         if (biometricStatus != BiometricManager.BIOMETRIC_SUCCESS) {
             biometricSettingRow.isEnabled = false
             biometricSettingRow.alpha = 0.4f
@@ -47,26 +52,17 @@ class SecurityActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         }
 
-        // Restore current state
         switchBiometric.isChecked = CryptoManager.isBiometricEnabled(this)
 
-        // Handle tap on the whole row
         biometricSettingRow.setOnClickListener {
             if (biometricStatus != BiometricManager.BIOMETRIC_SUCCESS) return@setOnClickListener
 
             if (!switchBiometric.isChecked) {
-                // Enable biometric → confirm with fingerprint first
                 showBiometricEnrollPrompt()
             } else {
-                // Disable biometric
                 disableBiometric()
             }
         }
-    }
-
-    private fun checkBiometricAvailability(): Int {
-        val biometricManager = BiometricManager.from(this)
-        return biometricManager.canAuthenticate(BIOMETRIC_WEAK)
     }
 
     private fun showBiometricEnrollPrompt() {
@@ -76,41 +72,58 @@ class SecurityActivity : AppCompatActivity() {
             return
         }
 
+        // Prepare encrypt cipher — this is a biometric-bound Keystore key operation
+        val encryptCipher = try {
+            CryptoManager.prepareBiometricEncryptCipher()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to prepare biometric cipher", e)
+            Toast.makeText(this, "Failed to prepare biometric setup", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(getString(R.string.biometric_prompt_title))
             .setSubtitle(getString(R.string.biometric_prompt_subtitle))
             .setNegativeButtonText(getString(R.string.cancel))
-            .setAllowedAuthenticators(BIOMETRIC_WEAK)
+            // CryptoObject requires BIOMETRIC_STRONG — no DEVICE_CREDENTIAL allowed here
+            .setAllowedAuthenticators(BIOMETRIC_STRONG)
             .build()
 
-        val biometricPrompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+        BiometricPrompt(this, ContextCompat.getMainExecutor(this),
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    masterPassword?.let {
-                        CryptoManager.saveMasterPasswordForBiometric(this@SecurityActivity, String(it))
+                    val cipher = result.cryptoObject?.cipher
+                    if (cipher == null) {
+                        Toast.makeText(this@SecurityActivity, "Biometric cipher unavailable", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    try {
+                        CryptoManager.encryptWithCipher(this@SecurityActivity, cipher, String(masterPassword))
                         CryptoManager.setBiometricEnabled(this@SecurityActivity, true)
                         switchBiometric.isChecked = true
                         Toast.makeText(this@SecurityActivity, "Biometric unlock enabled", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "encryptWithCipher failed", e)
+                        Toast.makeText(this@SecurityActivity, "Failed to save biometric data", Toast.LENGTH_SHORT).show()
                     }
                 }
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    // User cancelled or error — don't change state
+                    // User cancelled — no state change
                 }
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
                     Toast.makeText(this@SecurityActivity, getString(R.string.biometric_error), Toast.LENGTH_SHORT).show()
                 }
-            })
-
-        biometricPrompt.authenticate(promptInfo)
+            }
+        ).authenticate(promptInfo, BiometricPrompt.CryptoObject(encryptCipher))
     }
 
     private fun disableBiometric() {
-        CryptoManager.setBiometricEnabled(this, false)
+        CryptoManager.clearBiometricData(this)
         switchBiometric.isChecked = false
         Toast.makeText(this, getString(R.string.biometric_disabled), Toast.LENGTH_SHORT).show()
     }
