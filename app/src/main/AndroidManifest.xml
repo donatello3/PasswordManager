@@ -5,6 +5,7 @@
     <application
         android:name="io.kmanager.app.PasswordManagerApplication"
         android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/koala_launcher"

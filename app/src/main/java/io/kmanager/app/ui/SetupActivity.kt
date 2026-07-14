@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import io.kmanager.app.data.remote.FirestoreDataSource
 import io.kmanager.app.databinding.ActivitySetupBinding
 import io.kmanager.app.utils.CryptoManager
+import io.kmanager.app.utils.PasswordValidator
 import kotlinx.coroutines.launch
 import android.view.View
 import androidx.appcompat.app.AlertDialog
@@ -23,10 +24,25 @@ class SetupActivity : AppCompatActivity() {
         binding = ActivitySetupBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Показываем подсказку о требованиях под полем
+        binding.tilPassword.helperText = PasswordValidator.HINT
+
+        // Сброс ошибок при начале ввода
+        binding.etPassword.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) binding.tilPassword.error = null
+        }
+        binding.etConfirmPassword.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) binding.tilConfirmPassword.error = null
+        }
+
         binding.btnCreate.setOnClickListener {
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString()
             val confirm = binding.etConfirmPassword.text.toString()
+
+            // Сбрасываем ошибки перед новой проверкой
+            binding.tilPassword.error = null
+            binding.tilConfirmPassword.error = null
 
             if (email.isEmpty()) {
                 Toast.makeText(this, "Email cannot be empty", Toast.LENGTH_SHORT).show()
@@ -36,12 +52,20 @@ class SetupActivity : AppCompatActivity() {
                 Toast.makeText(this, "Invalid email format", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            if (password.isEmpty()) {
-                Toast.makeText(this, "Password cannot be empty", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+
+            // Валидация сложности пароля
+            when (val result = PasswordValidator.validate(password)) {
+                is PasswordValidator.Result.Invalid -> {
+                    binding.tilPassword.error = result.reason
+                    binding.etPassword.requestFocus()
+                    return@setOnClickListener
+                }
+                is PasswordValidator.Result.Valid -> { /* продолжаем */ }
             }
+
             if (password != confirm) {
-                Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
+                binding.tilConfirmPassword.error = "Passwords do not match"
+                binding.etConfirmPassword.requestFocus()
                 return@setOnClickListener
             }
 
@@ -50,7 +74,7 @@ class SetupActivity : AppCompatActivity() {
             // Генерируем случайную соль — она будет использована локально
             // и загружена в Firestore, чтобы оставаться единой на всех устройствах.
             val salt = CryptoManager.generateSalt()
-            val key = CryptoManager.setupAccount(this, email, password, salt)
+            CryptoManager.setupAccount(this, email, password, salt)
 
             val firestore = FirestoreDataSource(this)
             lifecycleScope.launch {

@@ -53,8 +53,18 @@ class LoginActivity : AppCompatActivity() {
 
                         // Сохраняем локальные данные для разблокировки (UnlockActivity).
                         // Запускаем на IO-потоке — PBKDF2 с 100k итерациями блокирует Main thread.
-                        withContext(Dispatchers.IO) {
-                            CryptoManager.setupAccount(this@LoginActivity, email, password, salt)
+                        val setupOk = withContext(Dispatchers.IO) {
+                            runSetupAccount(email, password, salt)
+                        }
+
+                        if (!setupOk) {
+                            Toast.makeText(
+                                this@LoginActivity,
+                                "Failed to save local credentials. Please try signing in again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            showLoading(false)
+                            return@launch
                         }
 
                         Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
@@ -83,5 +93,27 @@ class LoginActivity : AppCompatActivity() {
 
     private fun showLoading(isLoading: Boolean) {
         binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * Пытается сохранить локальные данные аккаунта (PBKDF2 + hash).
+     * При AEADBadTagException / любой крипто-ошибке очищает испорченные данные
+     * (характерно для OEM-восстановлений типа MIUI) и повторяет одну попытку.
+     * Возвращает true при успехе, false — если не удалось и после повтора.
+     */
+    private fun runSetupAccount(email: String, password: String, salt: ByteArray): Boolean {
+        repeat(2) { attempt ->
+            try {
+                CryptoManager.setupAccount(this, email, password, salt)
+                return true
+            } catch (e: Exception) {
+                Log.e("LoginActivity", "setupAccount failed (attempt ${attempt + 1}/2)", e)
+                if (attempt == 0) {
+                    // Очищаем повреждённые данные и пробуем ещё раз
+                    CryptoManager.clearCorruptedData(this)
+                }
+            }
+        }
+        return false
     }
 }

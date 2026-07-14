@@ -45,7 +45,7 @@ object CryptoManager {
      * Вызывается когда EncryptedSharedPreferences не может расшифровать данные
      * (например, после переустановки приложения или восстановления из бэкапа).
      */
-    private fun clearCorruptedData(context: Context) {
+    internal fun clearCorruptedData(context: Context) {
         Log.w(TAG, "Clearing corrupted EncryptedSharedPreferences data")
         try {
             // Удаляем файл shared prefs
@@ -103,28 +103,6 @@ object CryptoManager {
             }
         }
         throw lastException ?: IllegalStateException("EncryptedSharedPreferences creation failed")
-    }
-
-    @Deprecated("")
-    fun setupMasterPassword(context: Context, masterPassword: String): ByteArray {
-        // Generate a random salt
-        val salt = ByteArray(32)
-        SecureRandom().nextBytes(salt)
-
-        // Derive key
-        val key = deriveKey(masterPassword, salt)
-
-        // Hash the master password for verification
-        val hash = hashPassword(masterPassword, salt)
-
-        // Store salt and hash securely using EncryptedSharedPreferences
-        val sharedPrefs = getEncryptedPrefs(context)
-        sharedPrefs.edit()
-            .putString(KEY_SALT, salt.joinToString(",") { it.toString() })
-            .putString(KEY_HASH, hash.joinToString(",") { it.toString() })
-            .apply()
-
-        return key
     }
 
     /**
@@ -210,24 +188,6 @@ object CryptoManager {
             // getEncryptedPrefs сам обработал ошибку и пересоздал prefs,
             // значит данных нет → пароль не установлен
             Log.w(TAG, "isMasterPasswordSet: returning false after error: ${e.message}")
-            false
-        }
-    }
-
-    @Deprecated("")
-    fun verifyMasterPassword(context: Context, masterPassword: String): Boolean {
-        return try {
-            val sharedPrefs = getEncryptedPrefs(context)
-            val saltStr = sharedPrefs.getString(KEY_SALT, null) ?: return false
-            val hashStr = sharedPrefs.getString(KEY_HASH, null) ?: return false
-
-            val salt = saltStr.split(",").map { it.toByte() }.toByteArray()
-            val storedHash = hashStr.split(",").map { it.toByte() }.toByteArray()
-
-            val derivedHash = hashPassword(masterPassword, salt)
-            derivedHash.contentEquals(storedHash)
-        } catch (e: Exception) {
-            Log.e(TAG, "verifyMasterPassword failed", e)
             false
         }
     }
