@@ -7,6 +7,10 @@
             android:icon="@drawable/ic_security"
             android:title="@string/nav_security" />
         <item
+            android:id="@+id/nav_privacy_policy"
+            android:icon="@drawable/ic_privacy_policy"
+            android:title="@string/nav_privacy_policy" />
+        <item
             android:id="@+id/nav_logout"
             android:icon="@drawable/ic_logout"
             android:title="@string/action_logout" />

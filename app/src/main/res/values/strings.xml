@@ -45,4 +45,6 @@
     <string name="biometric_prompt_negative">Use password</string>
     <string name="biometric_error">Biometric authentication error</string>
     <string name="use_fingerprint">Use Fingerprint</string>
+
+    <string name="nav_privacy_policy">Privacy Policy</string>
 </resources>

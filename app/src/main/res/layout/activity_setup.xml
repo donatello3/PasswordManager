@@ -33,9 +33,12 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilPassword"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         app:boxBackgroundMode="outline"
+        app:errorEnabled="true"
         android:hint="Master Password">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -46,10 +49,12 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilConfirmPassword"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         app:boxBackgroundMode="outline"
+        app:errorEnabled="true"
         android:hint="Confirm Password">
 
         <com.google.android.material.textfield.TextInputEditText

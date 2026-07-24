@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:858824746282:android:a9ff0cc74f51bce2762a53",
+        "mobilesdk_app_id": "1:858824746282:android:3e5d561e67a3c0ac762a53",
         "android_client_info": {
-          "package_name": "com.example.passwordmanager"
+          "package_name": "io.kmanager.app"
         }
       },
       "oauth_client": [],

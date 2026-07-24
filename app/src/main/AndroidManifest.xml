@@ -3,8 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application
-        android:name=".PasswordManagerApplication"
+        android:name="io.kmanager.app.PasswordManagerApplication"
         android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/koala_launcher"
@@ -13,19 +14,19 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PasswordManager"
         tools:targetApi="31">
-        <activity android:name=".ui.splash.SplashActivity" android:exported="true">
+        <activity android:name="io.kmanager.app.ui.splash.SplashActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ui.LoginActivity" />
-        <activity android:name=".ui.SetupActivity" />
-        <activity android:name=".ui.UnlockActivity" />
-        <activity android:name=".MainActivity" />
-        <activity android:name=".AddEditActivity" />
-        <activity android:name=".PasswordDetailActivity" />
-        <activity android:name=".ui.SecurityActivity" />
+        <activity android:name="io.kmanager.app.ui.LoginActivity" />
+        <activity android:name="io.kmanager.app.ui.SetupActivity" />
+        <activity android:name="io.kmanager.app.ui.UnlockActivity" />
+        <activity android:name="io.kmanager.app.MainActivity" />
+        <activity android:name="io.kmanager.app.AddEditActivity" />
+        <activity android:name="io.kmanager.app.PasswordDetailActivity" />
+        <activity android:name="io.kmanager.app.ui.SecurityActivity" />
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
