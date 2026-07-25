@@ -181,6 +181,23 @@ class FirestoreDataSource(private val context: Context) {
     }
 
     /**
+     * Обновляет пароль текущего пользователя в Firebase Auth.
+     * Вызывается когда пользователь сбросил пароль через email на слабый,
+     * и мы принудительно предлагаем ему задать новый соответствующий требованиям.
+     */
+    suspend fun updateAuthPassword(newPassword: String): Boolean {
+        return try {
+            withTimeout(15_000L) {
+                auth.currentUser?.updatePassword(newPassword)?.await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "updateAuthPassword failed", e)
+            false
+        }
+    }
+
+    /**
      * Результат проверки ключа шифрования хранилища.
      */
     enum class KeyVerifyResult { VALID, INVALID, NOT_FOUND }

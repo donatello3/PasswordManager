@@ -73,4 +73,14 @@
     <string name="vault_reset_btn">OK, Clear Vault</string>
     <string name="vault_reset_done">Vault has been reset. You can now add your passwords again.</string>
 
+    <!-- Force password change after weak reset -->
+    <string name="force_pwd_change_title">🔒 Set a Stronger Password</string>
+    <string name="force_pwd_change_hint">Your new password doesn\'t meet the security requirements for this app. Please set a stronger password to continue.</string>
+    <string name="hint_new_password">New Password</string>
+    <string name="hint_confirm_password">Confirm New Password</string>
+    <string name="password_hint">Min 8 chars · uppercase · lowercase · digit · special character</string>
+    <string name="force_pwd_change_btn">Update Password</string>
+    <string name="force_pwd_change_error">Failed to update password. Please try again.</string>
+    <string name="error_passwords_mismatch">Passwords do not match</string>
+
 </resources>
