@@ -27,6 +27,7 @@
         <activity android:name="io.kmanager.app.AddEditActivity" />
         <activity android:name="io.kmanager.app.PasswordDetailActivity" />
         <activity android:name="io.kmanager.app.ui.SecurityActivity" />
+        <activity android:name="io.kmanager.app.ui.ForgotPasswordActivity" />
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />

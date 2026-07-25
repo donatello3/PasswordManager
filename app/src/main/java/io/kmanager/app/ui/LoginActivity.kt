@@ -4,9 +4,13 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import io.kmanager.app.R
+import io.kmanager.app.data.database.AppDatabase
 import io.kmanager.app.data.remote.FirestoreDataSource
+import io.kmanager.app.data.remote.FirestoreDataSource.KeyVerifyResult
 import io.kmanager.app.databinding.ActivityLoginBinding
 import io.kmanager.app.utils.CryptoManager
 import kotlinx.coroutines.launch
@@ -67,11 +71,30 @@ class LoginActivity : AppCompatActivity() {
                             return@launch
                         }
 
-                        Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
-                        startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))
-                        finish()
+                        // Проверяем keyVerifier — обнаруживаем сброс пароля
+                        val keyResult = withContext(Dispatchers.IO) {
+                            firestore.verifyKey(password, salt)
+                        }
+
+                        when (keyResult) {
+                            KeyVerifyResult.VALID -> {
+                                // Штатный вход
+                                proceedToUnlock()
+                            }
+                            KeyVerifyResult.NOT_FOUND -> {
+                                // Старый аккаунт без верификатора — загружаем и продолжаем
+                                withContext(Dispatchers.IO) {
+                                    firestore.uploadKeyVerifier(password, salt)
+                                }
+                                proceedToUnlock()
+                            }
+                            KeyVerifyResult.INVALID -> {
+                                // Пароль был сброшен — хранилище необходимо очистить
+                                showVaultResetDialog(firestore, email, password, salt)
+                            }
+                        }
                     } else {
-                        Toast.makeText(this@LoginActivity, "Firebase login failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Invalid email or password", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     Log.e("LoginActivity", "Login error", e)
@@ -89,6 +112,55 @@ class LoginActivity : AppCompatActivity() {
         binding.btnCreateAccount.setOnClickListener {
             startActivity(Intent(this, SetupActivity::class.java))
         }
+
+        binding.btnForgotPassword.setOnClickListener {
+            startActivity(Intent(this, ForgotPasswordActivity::class.java))
+        }
+    }
+
+    /**
+     * Показывает диалог о сбросе хранилища, очищает данные и продолжает вход.
+     */
+    private fun showVaultResetDialog(
+        firestore: FirestoreDataSource,
+        email: String,
+        password: String,
+        salt: ByteArray
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.vault_reset_title))
+            .setMessage(getString(R.string.vault_reset_message))
+            .setPositiveButton(getString(R.string.vault_reset_btn)) { _, _ ->
+                showLoading(true)
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        // Удаляем данные из Firestore
+                        firestore.deleteAllUserPasswords()
+                        // Удаляем локальную БД
+                        AppDatabase.resetInstance(this@LoginActivity)
+                        // Генерируем новую соль и перезаписываем учётные данные
+                        val newSalt = CryptoManager.generateSalt()
+                        firestore.uploadUserSalt(newSalt)
+                        runSetupAccount(email, password, newSalt)
+                        firestore.uploadKeyVerifier(password, newSalt)
+                    }
+                    showLoading(false)
+                    Toast.makeText(
+                        this@LoginActivity,
+                        getString(R.string.vault_reset_done),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    proceedToUnlock()
+                }
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun proceedToUnlock() {
+        Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
+        startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))
+        finish()
     }
 
     private fun showLoading(isLoading: Boolean) {

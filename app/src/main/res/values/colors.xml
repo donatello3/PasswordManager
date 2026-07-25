@@ -2,4 +2,6 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="warning_background">#FFF8E1</color>
+    <color name="warning_stroke">#FFB300</color>
 </resources>

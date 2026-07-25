@@ -7,6 +7,7 @@ import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.utils.EncryptionManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 
@@ -18,6 +19,7 @@ class FirestoreDataSource(private val context: Context) {
 
     companion object {
         private const val TAG = "FirestoreDataSource"
+        private const val KEY_VERIFIER_PLAINTEXT = "VAULT_OK"
     }
 
     suspend fun signInWithEmail(email: String, password: String): Boolean {
@@ -154,12 +156,96 @@ class FirestoreDataSource(private val context: Context) {
     }
 
     suspend fun isEmailVerified(): Boolean {
-        // Force refresh to get latest status from server
         return try {
             auth.currentUser?.reload()?.await()
             auth.currentUser?.isEmailVerified == true
         } catch (e: Exception) {
             Log.e(TAG, "isEmailVerified check failed", e)
+            false
+        }
+    }
+
+    /**
+     * Отправляет письмо со ссылкой для сброса пароля через Firebase Auth.
+     */
+    suspend fun sendPasswordResetEmail(email: String): Boolean {
+        return try {
+            withTimeout(15_000L) {
+                auth.sendPasswordResetEmail(email).await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "sendPasswordResetEmail failed", e)
+            false
+        }
+    }
+
+    /**
+     * Результат проверки ключа шифрования хранилища.
+     */
+    enum class KeyVerifyResult { VALID, INVALID, NOT_FOUND }
+
+    /**
+     * Загружает keyVerifier в Firestore — зашифрованную метку "VAULT_OK".
+     * Используется для обнаружения смены мастер-пароля (сброс через Firebase).
+     */
+    suspend fun uploadKeyVerifier(masterPassword: String, salt: ByteArray): Boolean {
+        val email = currentUserEmail ?: return false
+        return try {
+            val verifier = EncryptionManager.encryptString(KEY_VERIFIER_PLAINTEXT, masterPassword, salt)
+            withTimeout(15_000L) {
+                db.collection("users").document(email)
+                    .collection("metadata").document("crypto")
+                    .set(mapOf("keyVerifier" to verifier), SetOptions.merge())
+                    .await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadKeyVerifier failed", e)
+            false
+        }
+    }
+
+    /**
+     * Проверяет keyVerifier: скачивает из Firestore и пытается расшифровать.
+     * - VALID:     ключ совпадает — вход штатный
+     * - INVALID:   ключ не совпадает — пароль был сброшен, хранилище нужно очистить
+     * - NOT_FOUND: верификатор отсутствует — старый аккаунт, загрузим новый
+     */
+    suspend fun verifyKey(masterPassword: String, salt: ByteArray): KeyVerifyResult {
+        val email = currentUserEmail ?: return KeyVerifyResult.NOT_FOUND
+        return try {
+            val doc = withTimeout(15_000L) {
+                db.collection("users").document(email)
+                    .collection("metadata").document("crypto")
+                    .get().await()
+            }
+            val verifier = doc.getString("keyVerifier") ?: return KeyVerifyResult.NOT_FOUND
+            val plaintext = EncryptionManager.decryptString(verifier, masterPassword, salt)
+            if (plaintext == KEY_VERIFIER_PLAINTEXT) KeyVerifyResult.VALID else KeyVerifyResult.INVALID
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyKey failed — treating as VALID to avoid blocking login", e)
+            KeyVerifyResult.VALID
+        }
+    }
+
+    /**
+     * Удаляет все записи паролей пользователя из Firestore.
+     * Вызывается при обнаружении смены мастер-пароля.
+     */
+    suspend fun deleteAllUserPasswords(): Boolean {
+        val email = currentUserEmail ?: return false
+        return try {
+            val snapshot = withTimeout(30_000L) {
+                db.collection("users").document(email)
+                    .collection("passwords").get().await()
+            }
+            for (doc in snapshot.documents) {
+                doc.reference.delete().await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteAllUserPasswords failed", e)
             false
         }
     }

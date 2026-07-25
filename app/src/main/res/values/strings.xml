@@ -47,4 +47,30 @@
     <string name="use_fingerprint">Use Fingerprint</string>
 
     <string name="nav_privacy_policy">Privacy Policy</string>
+
+    <!-- Forgot password screen -->
+    <string name="forgot_password_link">Forgot Password?</string>
+    <string name="forgot_password_title">Reset Password</string>
+    <string name="forgot_password_icon_desc">Email icon</string>
+    <string name="forgot_password_description">Enter your email address and we\'ll send you a link to reset your password.</string>
+    <string name="forgot_password_data_loss_warning">After resetting your password, all saved passwords in your vault will be permanently deleted. You will need to add them again after signing in.</string>
+    <string name="forgot_password_btn_send">Send Reset Email</string>
+    <string name="back_to_login">Back to Login</string>
+    <string name="hint_email">Email</string>
+    <string name="forgot_password_confirm_title">⚠️ Confirm Password Reset</string>
+    <string name="forgot_password_confirm_message">Are you sure you want to reset your password?\n\nAll passwords saved in your vault will be permanently deleted when you sign in with the new password. This cannot be undone.</string>
+    <string name="forgot_password_confirm_yes">Yes, Reset Password</string>
+    <string name="forgot_password_success_title">Email Sent</string>
+    <string name="forgot_password_success_message">A password reset link has been sent to your email.\n\nAfter clicking the link and setting a new password, sign in to the app. Your vault will be cleared automatically and you can start fresh.</string>
+    <string name="forgot_password_success_btn">Back to Login</string>
+    <string name="forgot_password_send_failed">Failed to send reset email. Check that the email address is correct and try again.</string>
+    <string name="error_email_empty">Email cannot be empty</string>
+    <string name="error_email_invalid">Invalid email format</string>
+
+    <!-- Vault reset after password change -->
+    <string name="vault_reset_title">Vault Reset Required</string>
+    <string name="vault_reset_message">Your master password has changed since the last sign-in.\n\nFor security, all passwords saved in your vault have been deleted. You can now add your passwords again.</string>
+    <string name="vault_reset_btn">OK, Clear Vault</string>
+    <string name="vault_reset_done">Vault has been reset. You can now add your passwords again.</string>
+
 </resources>

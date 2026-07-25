@@ -60,6 +60,14 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:text="Create Account"/>
+
+    <Button
+        android:id="@+id/btnForgotPassword"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/forgot_password_link"
+        android:textColor="?attr/colorPrimary" />
 </LinearLayout>
 
     <FrameLayout

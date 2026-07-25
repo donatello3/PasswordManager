@@ -6,11 +6,15 @@ import io.kmanager.app.data.database.PasswordEntry
 import com.google.gson.Gson
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 object EncryptionManager {
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
+    private const val PBKDF2_ITERATIONS = 100_000
+    private const val KEY_LENGTH_BITS = 256
     private val gson = Gson()
 
     fun encryptEntry(context: Context, entry: PasswordEntry, masterPassword: String): String? {
@@ -36,6 +40,44 @@ object EncryptionManager {
         val decryptedBytes = cipher.doFinal(encryptedBytes)
         val json = String(decryptedBytes)
         return gson.fromJson(json, PasswordEntry::class.java)
+    }
+
+    /**
+     * Encrypts [plaintext] using AES-GCM with a key derived from [password] and [salt].
+     * Does not require Context — suitable for key verification stored in Firestore.
+     */
+    fun encryptString(plaintext: String, password: String, salt: ByteArray): String {
+        val key = deriveKeyFromPassword(password, salt)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        val encrypted = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        val combined = cipher.iv + encrypted
+        return Base64.encodeToString(combined, Base64.NO_WRAP)
+    }
+
+    /**
+     * Decrypts a string previously encrypted with [encryptString].
+     * Returns null if decryption fails (wrong key / corrupted data).
+     */
+    fun decryptString(encrypted: String, password: String, salt: ByteArray): String? {
+        return try {
+            val key = deriveKeyFromPassword(password, salt)
+            val combined = Base64.decode(encrypted, Base64.NO_WRAP)
+            val iv = combined.copyOfRange(0, 12)
+            val data = combined.copyOfRange(12, combined.size)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+            String(cipher.doFinal(data), Charsets.UTF_8)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun deriveKeyFromPassword(password: String, salt: ByteArray): SecretKey {
+        val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val keyBytes = factory.generateSecret(spec).encoded
+        return SecretKeySpec(keyBytes, "AES")
     }
 
     private fun getEncryptionKey(context: Context, masterPassword: String): SecretKey? {

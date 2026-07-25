@@ -84,6 +84,8 @@ class SetupActivity : AppCompatActivity() {
                     if (success) {
                         // Загружаем соль в Firestore (пользователь уже авторизован после signUp)
                         firestore.uploadUserSalt(salt)
+                        // Загружаем keyVerifier для последующей проверки смены пароля
+                        firestore.uploadKeyVerifier(password, salt)
 
                         Toast.makeText(this@SetupActivity, "Account created! Please unlock.", Toast.LENGTH_SHORT).show()
                         // Send verification email
