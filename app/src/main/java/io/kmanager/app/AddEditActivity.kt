@@ -6,7 +6,6 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import io.kmanager.app.R
 import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.data.repository.PasswordRepository
 import io.kmanager.app.databinding.ActivityAddEditBinding
@@ -14,6 +13,14 @@ import kotlinx.coroutines.launch
 import java.util.Date
 
 class AddEditActivity : AppCompatActivity() {
+
+    companion object {
+        const val MAX_TITLE_LENGTH    = 100
+        const val MAX_USERNAME_LENGTH = 100
+        const val MAX_PASSWORD_LENGTH = 500
+        const val MAX_URL_LENGTH      = 2048
+        const val MAX_NOTES_LENGTH    = 1000
+    }
 
     private lateinit var binding: ActivityAddEditBinding
     private var entryId: Long = -1
@@ -100,6 +107,40 @@ class AddEditActivity : AppCompatActivity() {
             Toast.makeText(this, "Title, username and password are required", Toast.LENGTH_SHORT).show()
             return
         }
+
+        // Back-end length validation (mirrors XML maxLength — defence in depth)
+        var hasError = false
+        if (title.length > MAX_TITLE_LENGTH) {
+            binding.tilTitle.error = "Max $MAX_TITLE_LENGTH characters"
+            hasError = true
+        } else {
+            binding.tilTitle.error = null
+        }
+        if (username.length > MAX_USERNAME_LENGTH) {
+            binding.tilUsername.error = "Max $MAX_USERNAME_LENGTH characters"
+            hasError = true
+        } else {
+            binding.tilUsername.error = null
+        }
+        if (password.length > MAX_PASSWORD_LENGTH) {
+            binding.tilPassword.error = "Max $MAX_PASSWORD_LENGTH characters"
+            hasError = true
+        } else {
+            binding.tilPassword.error = null
+        }
+        if (url.length > MAX_URL_LENGTH) {
+            binding.tilUrl.error = "Max $MAX_URL_LENGTH characters"
+            hasError = true
+        } else {
+            binding.tilUrl.error = null
+        }
+        if (notes.length > MAX_NOTES_LENGTH) {
+            binding.tilNotes.error = "Max $MAX_NOTES_LENGTH characters"
+            hasError = true
+        } else {
+            binding.tilNotes.error = null
+        }
+        if (hasError) return
 
         val now = Date()
 

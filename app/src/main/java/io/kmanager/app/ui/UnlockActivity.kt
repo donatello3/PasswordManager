@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import io.kmanager.app.MainActivity
 import io.kmanager.app.PasswordManagerApplication
 import io.kmanager.app.R
+import io.kmanager.app.data.database.AppDatabase
 import io.kmanager.app.data.remote.FirestoreDataSource
 import io.kmanager.app.databinding.ActivityUnlockBinding
 import io.kmanager.app.utils.CryptoManager
@@ -46,6 +47,15 @@ class UnlockActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Wrong password", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        binding.btnBackToLogin.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Sign out")
+                .setMessage("Are you sure you want to sign out and return to the login screen?")
+                .setPositiveButton("Sign out") { _, _ -> signOutAndGoToLogin() }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
     }
 
@@ -189,5 +199,24 @@ class UnlockActivity : AppCompatActivity() {
 
     private fun showLoading(isLoading: Boolean) {
         binding.loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    private fun signOutAndGoToLogin() {
+        // Clear master password from memory
+        val app = application as PasswordManagerApplication
+        app.currentMasterPassword = null
+
+        // Close the encrypted DB so it can be re-opened on next login
+        AppDatabase.resetInstance(this)
+
+        // Sign out from Firebase
+        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+
+        // Navigate back to LoginActivity, clear the back stack
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 }

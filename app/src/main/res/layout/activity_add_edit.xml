@@ -36,13 +36,16 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:boxBackgroundMode="outline"
-                android:hint="Title">
+                android:hint="Title"
+                app:counterEnabled="true"
+                app:counterMaxLength="100">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"/>
+                    android:inputType="text"
+                    android:maxLength="100"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Username -->
@@ -55,13 +58,16 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/tilTitle"
                 app:boxBackgroundMode="outline"
-                android:hint="Username">
+                android:hint="Username"
+                app:counterEnabled="true"
+                app:counterMaxLength="100">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUsername"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"/>
+                    android:inputType="text"
+                    android:maxLength="100"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Password with generate button -->
@@ -75,13 +81,16 @@
                 app:layout_constraintTop_toBottomOf="@id/tilUsername"
                 app:boxBackgroundMode="outline"
                 android:hint="Password"
-                app:endIconMode="password_toggle">
+                app:endIconMode="password_toggle"
+                app:counterEnabled="true"
+                app:counterMaxLength="500">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etPassword"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textPassword"/>
+                    android:inputType="textPassword"
+                    android:maxLength="500"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <Button
@@ -110,7 +119,8 @@
                     android:id="@+id/etUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="textUri"/>
+                    android:inputType="textUri"
+                    android:maxLength="2048"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Notes -->
@@ -123,14 +133,17 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/tilUrl"
                 app:boxBackgroundMode="outline"
-                android:hint="Notes (optional)">
+                android:hint="Notes (optional)"
+                app:counterEnabled="true"
+                app:counterMaxLength="1000">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etNotes"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textMultiLine"
-                    android:minLines="3"/>
+                    android:minLines="3"
+                    android:maxLength="1000"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Category Spinner -->

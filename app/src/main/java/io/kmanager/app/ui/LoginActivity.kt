@@ -3,16 +3,22 @@ package io.kmanager.app.ui
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import io.kmanager.app.R
+import io.kmanager.app.data.database.AppDatabase
 import io.kmanager.app.data.remote.FirestoreDataSource
+import io.kmanager.app.data.remote.FirestoreDataSource.KeyVerifyResult
 import io.kmanager.app.databinding.ActivityLoginBinding
+import io.kmanager.app.databinding.DialogForcePasswordChangeBinding
 import io.kmanager.app.utils.CryptoManager
+import io.kmanager.app.utils.PasswordValidator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
-import android.view.View
 
 class LoginActivity : AppCompatActivity() {
 
@@ -67,11 +73,36 @@ class LoginActivity : AppCompatActivity() {
                             return@launch
                         }
 
-                        Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
-                        startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))
-                        finish()
+                        // Проверяем keyVerifier — обнаруживаем сброс пароля
+                        val keyResult = withContext(Dispatchers.IO) {
+                            firestore.verifyKey(password, salt)
+                        }
+
+                        when (keyResult) {
+                            KeyVerifyResult.VALID -> {
+                                // Штатный вход
+                                proceedToUnlock()
+                            }
+                            KeyVerifyResult.NOT_FOUND -> {
+                                // Старый аккаунт без верификатора — загружаем и продолжаем
+                                withContext(Dispatchers.IO) {
+                                    firestore.uploadKeyVerifier(password, salt)
+                                }
+                                proceedToUnlock()
+                            }
+                            KeyVerifyResult.INVALID -> {
+                                // Пароль был сброшен — сначала проверяем его сложность
+                                val passwordValid = PasswordValidator.validate(password) is PasswordValidator.Result.Valid
+                                if (passwordValid) {
+                                    showVaultResetDialog(firestore, email, password, salt)
+                                } else {
+                                    // Пароль слабый — принудительно просим сменить
+                                    showForcePasswordChangeDialog(firestore, email, salt)
+                                }
+                            }
+                        }
                     } else {
-                        Toast.makeText(this@LoginActivity, "Firebase login failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Invalid email or password", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     Log.e("LoginActivity", "Login error", e)
@@ -89,6 +120,133 @@ class LoginActivity : AppCompatActivity() {
         binding.btnCreateAccount.setOnClickListener {
             startActivity(Intent(this, SetupActivity::class.java))
         }
+
+        binding.btnForgotPassword.setOnClickListener {
+            startActivity(Intent(this, ForgotPasswordActivity::class.java))
+        }
+    }
+
+    /**
+     * Показывает диалог принудительной смены пароля когда после сброса
+     * пользователь задал пароль не соответствующий требованиям безопасности.
+     * После успешной смены продолжает стандартный сброс хранилища.
+     */
+    private fun showForcePasswordChangeDialog(
+        firestore: FirestoreDataSource,
+        email: String,
+        oldSalt: ByteArray
+    ) {
+        val dialogBinding = DialogForcePasswordChangeBinding.inflate(layoutInflater)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.force_pwd_change_title))
+            .setView(dialogBinding.root)
+            .setPositiveButton(getString(R.string.force_pwd_change_btn), null) // null — переопределим ниже
+            .setCancelable(false)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val newPassword = dialogBinding.etNewPassword.text.toString()
+                val confirm = dialogBinding.etConfirmPassword.text.toString()
+
+                dialogBinding.tilNewPassword.error = null
+                dialogBinding.tilConfirmPassword.error = null
+
+                // Валидируем новый пароль
+                when (val result = PasswordValidator.validate(newPassword)) {
+                    is PasswordValidator.Result.Invalid -> {
+                        dialogBinding.tilNewPassword.error = result.reason
+                        return@setOnClickListener
+                    }
+                    is PasswordValidator.Result.Valid -> { /* продолжаем */ }
+                }
+
+                if (newPassword != confirm) {
+                    dialogBinding.tilConfirmPassword.error = getString(R.string.error_passwords_mismatch)
+                    return@setOnClickListener
+                }
+
+                // Обновляем пароль в Firebase Auth и продолжаем сброс хранилища
+                showLoading(true)
+                lifecycleScope.launch {
+                    val updated = withContext(Dispatchers.IO) {
+                        firestore.updateAuthPassword(newPassword)
+                    }
+                    if (updated) {
+                        // Пересохраняем локальные данные с новым паролем
+                        val newSetupOk = withContext(Dispatchers.IO) {
+                            runSetupAccount(email, newPassword, oldSalt)
+                        }
+                        if (newSetupOk) {
+                            dialog.dismiss()
+                            showVaultResetDialog(firestore, email, newPassword, oldSalt)
+                        } else {
+                            showLoading(false)
+                            Toast.makeText(
+                                this@LoginActivity,
+                                getString(R.string.force_pwd_change_error),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        showLoading(false)
+                        Toast.makeText(
+                            this@LoginActivity,
+                            getString(R.string.force_pwd_change_error),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Показывает диалог о сбросе хранилища, очищает данные и продолжает вход.
+     */
+    private fun showVaultResetDialog(
+        firestore: FirestoreDataSource,
+        email: String,
+        password: String,
+        salt: ByteArray
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.vault_reset_title))
+            .setMessage(getString(R.string.vault_reset_message))
+            .setPositiveButton(getString(R.string.vault_reset_btn)) { _, _ ->
+                showLoading(true)
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        // Удаляем данные из Firestore
+                        firestore.deleteAllUserPasswords()
+                        // Удаляем локальную БД
+                        AppDatabase.resetInstance(this@LoginActivity)
+                        // Генерируем новую соль и перезаписываем учётные данные
+                        val newSalt = CryptoManager.generateSalt()
+                        firestore.uploadUserSalt(newSalt)
+                        runSetupAccount(email, password, newSalt)
+                        firestore.uploadKeyVerifier(password, newSalt)
+                    }
+                    showLoading(false)
+                    Toast.makeText(
+                        this@LoginActivity,
+                        getString(R.string.vault_reset_done),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    proceedToUnlock()
+                }
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun proceedToUnlock() {
+        Toast.makeText(this@LoginActivity, "Login successful", Toast.LENGTH_SHORT).show()
+        startActivity(Intent(this@LoginActivity, UnlockActivity::class.java))
+        finish()
     }
 
     private fun showLoading(isLoading: Boolean) {
