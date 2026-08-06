@@ -10,7 +10,9 @@ import io.kmanager.app.data.remote.FirestoreDataSource
 import io.kmanager.app.databinding.ActivitySetupBinding
 import io.kmanager.app.utils.CryptoManager
 import io.kmanager.app.utils.PasswordValidator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 
@@ -71,14 +73,17 @@ class SetupActivity : AppCompatActivity() {
 
             showLoading(true)
 
-            // Генерируем случайную соль — она будет использована локально
-            // и загружена в Firestore, чтобы оставаться единой на всех устройствах.
-            val salt = CryptoManager.generateSalt()
-            CryptoManager.setupAccount(this, email, password, salt)
-
             val firestore = FirestoreDataSource(this)
             lifecycleScope.launch {
                 try {
+                    // Генерируем соль и сохраняем локальные данные на IO-потоке —
+                    // PBKDF2 с 100k итерациями блокирует Main thread.
+                    val salt = withContext(Dispatchers.IO) {
+                        val s = CryptoManager.generateSalt()
+                        CryptoManager.setupAccount(this@SetupActivity, email, password, s)
+                        s
+                    }
+
                     val success = firestore.signUpWithEmail(email, password)
 
                     if (success) {
