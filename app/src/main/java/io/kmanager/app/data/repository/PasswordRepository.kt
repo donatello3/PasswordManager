@@ -82,6 +82,9 @@ class PasswordRepository(private val dao: PasswordDao,
         if (masterPassword == null || masterPassword.isEmpty()) return
 
         val remoteEntries = remoteDataSource.fetchAllEntries(masterPassword)
+        val remoteIds = remoteEntries.mapNotNull { it.remoteId }.toSet()
+
+        // Добавляем/обновляем записи из облака
         for (remoteEntry in remoteEntries) {
             val remoteId = remoteEntry.remoteId ?: continue
             // Дедуплицируем только по remoteId (Firestore document ID)
@@ -94,6 +97,15 @@ class PasswordRepository(private val dao: PasswordDao,
                 if (remoteEntry.lastModified > existing.lastModified) {
                     dao.update(remoteEntry.copy(id = existing.id, syncEnabled = true))
                 }
+            }
+        }
+
+        // Удаляем локальные записи, которых больше нет в Firestore
+        // (были удалены на другом устройстве)
+        val localSyncedEntries = dao.getAllSyncedPasswords()
+        for (localEntry in localSyncedEntries) {
+            if (localEntry.remoteId !in remoteIds) {
+                dao.delete(localEntry)
             }
         }
     }
