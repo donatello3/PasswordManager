@@ -81,7 +81,12 @@ class PasswordRepository(private val dao: PasswordDao,
         val masterPassword = getMasterPassword()
         if (masterPassword == null || masterPassword.isEmpty()) return
 
+
         val remoteEntries = remoteDataSource.fetchAllEntries(masterPassword)
+        if (remoteEntries == null) {
+            Log.w(TAG, "syncPasswordsFromRemote: fetch failed, skipping sync to avoid data loss")
+            return
+        }
         val remoteIds = remoteEntries.mapNotNull { it.remoteId }.toSet()
 
         // Добавляем/обновляем записи из облака
