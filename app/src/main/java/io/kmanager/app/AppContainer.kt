@@ -33,4 +33,18 @@ class AppContainer(private val context: Context) {
         AppDatabase.resetInstance(context)
         database = null
     }
+
+    /**
+     * Закрывает текущую сессию (соединение с БД) БЕЗ удаления файла — используется
+     * при авто-блокировке приложения (таймаут бездействия / уход в фон).
+     * В отличие от [clearRepository] (полный логаут), локальные записи паролей
+     * сохраняются на диске и снова становятся доступны после ввода мастер-пароля
+     * на экране UnlockActivity.
+     */
+    fun closeRepositorySession() {
+        repository = null
+        _repository = null
+        AppDatabase.closeInstance()
+        database = null
+    }
 }

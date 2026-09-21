@@ -46,5 +46,18 @@ abstract class AppDatabase : RoomDatabase(){
                 try { context.applicationContext.deleteDatabase(DB_NAME) } catch (_: Exception) {}
             }
         }
+
+        /**
+         * Закрывает текущее соединение с БД, НЕ удаляя файл на диске.
+         * В отличие от [resetInstance], используется при авто-блокировке приложения
+         * (таймаут бездействия / уход в фон) — локальные данные сохраняются
+         * и снова становятся доступны после повторного ввода мастер-пароля.
+         */
+        fun closeInstance() {
+            synchronized(this) {
+                try { INSTANCE?.close() } catch (_: Exception) {}
+                INSTANCE = null
+            }
+        }
     }
 }

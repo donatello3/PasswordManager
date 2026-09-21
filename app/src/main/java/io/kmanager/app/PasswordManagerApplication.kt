@@ -1,6 +1,7 @@
 package io.kmanager.app
 
 import android.app.Application
+import io.kmanager.app.utils.AppLockManager
 import java.util.Arrays
 
 class PasswordManagerApplication : Application() {
@@ -10,6 +11,7 @@ class PasswordManagerApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appContainer = AppContainer(this)
+        AppLockManager.init(this)
     }
 
     fun clearMasterPassword() {
