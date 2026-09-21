@@ -46,6 +46,11 @@
     <string name="biometric_error">Biometric authentication error</string>
     <string name="use_fingerprint">Use Fingerprint</string>
 
+    <!-- Auto-lock timeout setting -->
+    <string name="auto_lock_title">Auto-lock timeout</string>
+    <string name="auto_lock_desc">Lock the vault after this much time in the background</string>
+    <string name="auto_lock_dialog_title">Lock after</string>
+
     <string name="nav_privacy_policy">Privacy Policy</string>
 
     <!-- Forgot password screen -->

@@ -23,6 +23,9 @@ interface PasswordDao {
     @Query("SELECT * FROM passwords WHERE remoteId = :remoteId")
     suspend fun getPasswordByRemoteId(remoteId: String): PasswordEntry?
 
+    @Query("SELECT * FROM passwords WHERE remoteId IS NOT NULL")
+    suspend fun getAllSyncedPasswords(): List<PasswordEntry>
+
     @Insert
     suspend fun insert(entry: PasswordEntry): Long
 

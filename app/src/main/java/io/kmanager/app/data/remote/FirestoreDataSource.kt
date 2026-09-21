@@ -8,6 +8,7 @@ import io.kmanager.app.utils.EncryptionManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 
@@ -16,6 +17,9 @@ class FirestoreDataSource(private val context: Context) {
     private val db = FirebaseFirestore.getInstance()
     private val currentUserEmail: String?
         get() = auth.currentUser?.email
+
+    private val currentUserId: String?
+        get() = auth.currentUser?.uid
 
     companion object {
         private const val TAG = "FirestoreDataSource"
@@ -34,7 +38,7 @@ class FirestoreDataSource(private val context: Context) {
 
     suspend fun uploadEntry(entry: PasswordEntry, masterPassword: CharArray?): String? {
         if (!entry.syncEnabled) return null
-        val email = currentUserEmail ?: return null
+        val uid = currentUserId ?: return null
         if (masterPassword == null || masterPassword.isEmpty()) return null
         val passwordString = String(masterPassword)
         val encrypted = EncryptionManager.encryptEntry(context, entry, passwordString) ?: return null
@@ -43,9 +47,9 @@ class FirestoreDataSource(private val context: Context) {
             "lastModified" to entry.lastModified
         )
         val docRef = if (entry.remoteId != null) {
-            db.collection("users").document(email).collection("passwords").document(entry.remoteId)
+            db.collection("users").document(uid).collection("passwords").document(entry.remoteId)
         } else {
-            db.collection("users").document(email).collection("passwords").document()
+            db.collection("users").document(uid).collection("passwords").document()
         }
         return try {
             docRef.set(data).await()
@@ -58,26 +62,50 @@ class FirestoreDataSource(private val context: Context) {
 
     suspend fun deleteRemoteEntry(entry: PasswordEntry) {
         if (entry.remoteId == null) return
-        val email = currentUserEmail ?: return
+        val uid = currentUserId ?: return
         try {
-            db.collection("users").document(email).collection("passwords")
+            db.collection("users").document(uid).collection("passwords")
                 .document(entry.remoteId).delete().await()
         } catch (e: Exception) {
             Log.e(TAG, "deleteRemoteEntry failed", e)
         }
     }
 
-    suspend fun fetchAllEntries(masterPassword: CharArray?): List<PasswordEntry> {
-        val email = currentUserEmail ?: return emptyList()
-        if (masterPassword == null || masterPassword.isEmpty()) return emptyList()
+    /**
+     * Скачивает все зашифрованные записи пользователя из Firestore.
+     *
+     * Возвращает `null`, если запрос вообще не удалось выполнить (нет сети и т.д.) —
+     * это отличается от пустого списка (аккаунт действительно без записей), чтобы
+     * вызывающий код (см. [io.kmanager.app.data.repository.PasswordRepository.syncPasswordsFromRemote])
+     * не удалял локальные записи на основании заведомо неполных/ошибочных данных.
+     *
+     * Явно запрашивает данные с сервера ([Source.SERVER]), а не из локального
+     * офлайн-кэша Firestore SDK — иначе после добавления записи на другом устройстве
+     * этот метод мог тихо вернуть устаревший кэш без новой записи (без какой-либо ошибки).
+     * При ошибке сервера (например, кратковременная потеря сети) — fallback на кэш,
+     * чтобы не оставлять пользователя совсем без данных, если он реально офлайн.
+     */
+    suspend fun fetchAllEntries(masterPassword: CharArray?): List<PasswordEntry>? {
+        val uid = currentUserId ?: return null
+        if (masterPassword == null || masterPassword.isEmpty()) return null
         val passwordString = String(masterPassword)
+
+        val collection = db.collection("users").document(uid).collection("passwords")
         val snapshot = try {
-            db.collection("users").document(email).collection("passwords").get().await()
+            withTimeout(20_000L) { collection.get(Source.SERVER).await() }
         } catch (e: Exception) {
-            Log.e(TAG, "fetchAllEntries failed", e)
-            return emptyList()
+            Log.w(TAG, "fetchAllEntries: server fetch failed (${e.message}), falling back to cache")
+            try {
+                withTimeout(10_000L) { collection.get(Source.CACHE).await() }
+            } catch (e2: Exception) {
+                Log.e(TAG, "fetchAllEntries failed (server and cache)", e2)
+                return null
+            }
         }
+
+        Log.d(TAG, "fetchAllEntries: fetched ${snapshot.documents.size} remote document(s)")
         val entries = mutableListOf<PasswordEntry>()
+        var decryptFailures = 0
         for (doc in snapshot.documents) {
             val encrypted = doc.getString("encryptedData") ?: continue
             val lastModifiedRemote = doc.getLong("lastModified") ?: 0
@@ -85,26 +113,38 @@ class FirestoreDataSource(private val context: Context) {
                 val entry = EncryptionManager.decryptEntry(context, encrypted, passwordString)
                 if (entry != null) {
                     entries.add(entry.copy(remoteId = doc.id, lastModified = lastModifiedRemote))
+                } else {
+                    decryptFailures++
                 }
             } catch (e: Exception) {
+                decryptFailures++
                 Log.e(TAG, "Decryption failed for document ${doc.id}", e)
             }
+        }
+        if (decryptFailures > 0) {
+            // Не прерываем синк из-за этого, но логируем — частая причина: рассинхронизация
+            // соли/ключа шифрования между устройствами (см. downloadUserSalt/getLegacySalt).
+            Log.w(TAG, "fetchAllEntries: $decryptFailures document(s) failed to decrypt")
         }
         return entries
     }
 
     /**
-     * Загружает соль пользователя в Firestore (документ users/{email}/metadata/crypto).
-     * Соль не является секретом — она защищена Firebase Auth-правилами.
+     * Загружает соль пользователя в Firestore (документ users/{uid}/metadata/crypto).
+     * Соль не является секретом — она защищена Firebase Auth-правилами (по uid).
+     * Заодно сохраняет email как обычное информационное поле (не используется
+     * для разграничения доступа — путь теперь строится по uid).
      */
     suspend fun uploadUserSalt(salt: ByteArray): Boolean {
-        val email = currentUserEmail ?: return false
+        val uid = currentUserId ?: return false
         return try {
             val saltBase64 = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val data = mutableMapOf<String, Any>("salt" to saltBase64)
+            currentUserEmail?.let { data["email"] = it }
             withTimeout(15_000L) {
-                db.collection("users").document(email)
+                db.collection("users").document(uid)
                     .collection("metadata").document("crypto")
-                    .set(mapOf("salt" to saltBase64))
+                    .set(data, SetOptions.merge())
                     .await()
             }
             true
@@ -119,10 +159,10 @@ class FirestoreDataSource(private val context: Context) {
      * Возвращает null, если соль ещё не сохранена (старый аккаунт — требует миграции).
      */
     suspend fun downloadUserSalt(): ByteArray? {
-        val email = currentUserEmail ?: return null
+        val uid = currentUserId ?: return null
         return try {
             val doc = withTimeout(15_000L) {
-                db.collection("users").document(email)
+                db.collection("users").document(uid)
                     .collection("metadata").document("crypto")
                     .get().await()
             }
@@ -207,11 +247,11 @@ class FirestoreDataSource(private val context: Context) {
      * Используется для обнаружения смены мастер-пароля (сброс через Firebase).
      */
     suspend fun uploadKeyVerifier(masterPassword: String, salt: ByteArray): Boolean {
-        val email = currentUserEmail ?: return false
+        val uid = currentUserId ?: return false
         return try {
             val verifier = EncryptionManager.encryptString(KEY_VERIFIER_PLAINTEXT, masterPassword, salt)
             withTimeout(15_000L) {
-                db.collection("users").document(email)
+                db.collection("users").document(uid)
                     .collection("metadata").document("crypto")
                     .set(mapOf("keyVerifier" to verifier), SetOptions.merge())
                     .await()
@@ -230,10 +270,10 @@ class FirestoreDataSource(private val context: Context) {
      * - NOT_FOUND: верификатор отсутствует — старый аккаунт, загрузим новый
      */
     suspend fun verifyKey(masterPassword: String, salt: ByteArray): KeyVerifyResult {
-        val email = currentUserEmail ?: return KeyVerifyResult.NOT_FOUND
+        val uid = currentUserId ?: return KeyVerifyResult.NOT_FOUND
         return try {
             val doc = withTimeout(15_000L) {
-                db.collection("users").document(email)
+                db.collection("users").document(uid)
                     .collection("metadata").document("crypto")
                     .get().await()
             }
@@ -251,10 +291,10 @@ class FirestoreDataSource(private val context: Context) {
      * Вызывается при обнаружении смены мастер-пароля.
      */
     suspend fun deleteAllUserPasswords(): Boolean {
-        val email = currentUserEmail ?: return false
+        val uid = currentUserId ?: return false
         return try {
             val snapshot = withTimeout(30_000L) {
-                db.collection("users").document(email)
+                db.collection("users").document(uid)
                     .collection("passwords").get().await()
             }
             for (doc in snapshot.documents) {

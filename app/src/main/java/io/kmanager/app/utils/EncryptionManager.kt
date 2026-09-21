@@ -2,8 +2,15 @@ package io.kmanager.app.utils
 
 import android.content.Context
 import android.util.Base64
+import android.util.Log
 import io.kmanager.app.data.database.PasswordEntry
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonSerializer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
@@ -12,10 +19,44 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 object EncryptionManager {
+    private const val TAG = "EncryptionManager"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val PBKDF2_ITERATIONS = 100_000
     private const val KEY_LENGTH_BITS = 256
-    private val gson = Gson()
+
+    // Форматы для лениентного разбора СТАРЫХ записей, сохранённых до перехода
+    // на epoch millis (см. ниже) — DefaultDateTypeAdapter Gson формирует строку
+    // по-разному в зависимости от локали/версии ICU конкретного устройства,
+    // поэтому запись, созданная на одном устройстве, могла не парситься на другом.
+    private val legacyDateFormats = listOf(
+        "MMM d, yyyy, h:mm:ss a",
+        "MMM d, yyyy HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+    ).map { SimpleDateFormat(it, Locale.US) }
+
+    // Gson с детерминированной, не зависящей от локали/устройства сериализацией Date:
+    // храним как epoch millis (число), а не как отформатированную строку.
+    private val gson: Gson = GsonBuilder()
+        .registerTypeAdapter(Date::class.java, JsonSerializer<Date> { src, _, _ ->
+            com.google.gson.JsonPrimitive(src.time)
+        })
+        .registerTypeAdapter(Date::class.java, JsonDeserializer { json, _, _ ->
+            val primitive = json.asJsonPrimitive
+            if (primitive.isNumber) {
+                Date(primitive.asLong)
+            } else {
+                // Legacy-запись (создана до фикса) — пробуем разобрать известные форматы,
+                // при неудаче не роняем всю запись, а используем текущее время.
+                val str = primitive.asString
+                legacyDateFormats.firstNotNullOfOrNull {
+                    try { it.parse(str) } catch (_: Exception) { null }
+                } ?: run {
+                    Log.w(TAG, "Failed to parse legacy date '$str', falling back to now()")
+                    Date()
+                }
+            }
+        })
+        .create()
 
     fun encryptEntry(context: Context, entry: PasswordEntry, masterPassword: String): String? {
         val key = getEncryptionKey(context, masterPassword) ?: return null

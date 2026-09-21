@@ -3,7 +3,9 @@ package io.kmanager.app.ui
 import android.os.Bundle
 import android.util.Log
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -11,6 +13,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import io.kmanager.app.PasswordManagerApplication
 import io.kmanager.app.R
+import io.kmanager.app.utils.AppLockManager
 import io.kmanager.app.utils.CryptoManager
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -23,6 +26,8 @@ class SecurityActivity : AppCompatActivity() {
 
     private lateinit var switchBiometric: SwitchMaterial
     private lateinit var biometricSettingRow: LinearLayout
+    private lateinit var autoLockSettingRow: LinearLayout
+    private lateinit var tvAutoLockValue: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +39,8 @@ class SecurityActivity : AppCompatActivity() {
 
         switchBiometric = findViewById(R.id.switchBiometric)
         biometricSettingRow = findViewById(R.id.biometricSettingRow)
+        autoLockSettingRow = findViewById(R.id.autoLockSettingRow)
+        tvAutoLockValue = findViewById(R.id.tvAutoLockValue)
 
         // We require BIOMETRIC_STRONG because we use a CryptoObject (biometric-bound key).
         val biometricStatus = BiometricManager.from(this).canAuthenticate(BIOMETRIC_STRONG)
@@ -63,6 +70,35 @@ class SecurityActivity : AppCompatActivity() {
                 disableBiometric()
             }
         }
+
+        updateAutoLockValueLabel()
+        autoLockSettingRow.setOnClickListener { showAutoLockTimeoutDialog() }
+    }
+
+    // ── Auto-lock timeout ────────────────────────────────────────────────────
+
+    private fun updateAutoLockValueLabel() {
+        val currentMillis = AppLockManager.getTimeoutMillis(this)
+        val label = AppLockManager.TIMEOUT_OPTIONS.firstOrNull { it.first == currentMillis }?.second
+            ?: AppLockManager.TIMEOUT_OPTIONS.first { it.first == AppLockManager.DEFAULT_TIMEOUT_MILLIS }.second
+        tvAutoLockValue.text = label
+    }
+
+    private fun showAutoLockTimeoutDialog() {
+        val options = AppLockManager.TIMEOUT_OPTIONS
+        val labels = options.map { it.second }.toTypedArray()
+        val currentMillis = AppLockManager.getTimeoutMillis(this)
+        val checkedIndex = options.indexOfFirst { it.first == currentMillis }.let { if (it >= 0) it else options.indexOfFirst { o -> o.first == AppLockManager.DEFAULT_TIMEOUT_MILLIS } }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.auto_lock_dialog_title)
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                AppLockManager.setTimeoutMillis(this, options[which].first)
+                updateAutoLockValueLabel()
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun showBiometricEnrollPrompt() {
