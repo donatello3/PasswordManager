@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.utils.EncryptionManager
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -303,6 +304,57 @@ class FirestoreDataSource(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.e(TAG, "deleteAllUserPasswords failed", e)
+            false
+        }
+    }
+
+    /**
+     * Повторно подтверждает личность пользователя перед необратимыми операциями
+     * (удаление аккаунта). Firebase требует "свежий" вход для [FirebaseUser.delete] —
+     * этот вызов обновляет сессию независимо от того, истекла ли она, и заодно
+     * служит проверкой того, что пользователь действительно знает мастер-пароль.
+     */
+    suspend fun reauthenticate(password: String): Boolean {
+        val user = auth.currentUser ?: return false
+        val email = user.email ?: return false
+        return try {
+            val credential = EmailAuthProvider.getCredential(email, password)
+            withTimeout(15_000L) { user.reauthenticate(credential).await() }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "reauthenticate failed", e)
+            false
+        }
+    }
+
+    /**
+     * Удаляет метаданные пользователя (salt, keyVerifier, email) из Firestore.
+     */
+    suspend fun deleteUserMetadata(): Boolean {
+        val uid = currentUserId ?: return false
+        return try {
+            withTimeout(15_000L) {
+                db.collection("users").document(uid)
+                    .collection("metadata").document("crypto")
+                    .delete().await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteUserMetadata failed", e)
+            false
+        }
+    }
+
+    /**
+     * Удаляет сам аккаунт Firebase Auth
+     */
+    suspend fun deleteAuthAccount(): Boolean {
+        val user = auth.currentUser ?: return false
+        return try {
+            withTimeout(15_000L) { user.delete().await() }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteAuthAccount failed", e)
             false
         }
     }

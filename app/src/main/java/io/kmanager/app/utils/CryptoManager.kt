@@ -396,4 +396,16 @@ object CryptoManager {
         }
     }
 
+    /**
+     * Полная необратимая локальная очистка всех данных аккаунта: master-password
+     * salt/hash/email в EncryptedSharedPreferences, а также биометрические данные
+     * и связанный Keystore-ключ. Файл базы данных паролей НЕ трогает — за это
+     * отвечает [io.kmanager.app.data.database.AppDatabase.resetInstance].
+     * Вызывается при удалении аккаунта пользователем.
+     */
+    fun wipeAllLocalData(context: Context) {
+        clearBiometricData(context)
+        clearSession(context)
+    }
+
 }
