@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import net.sqlcipher.database.SupportFactory
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(entities = [PasswordEntry::class], version = 1, exportSchema = false)
 @TypeConverters(Converters::class)
@@ -16,12 +16,27 @@ abstract class AppDatabase : RoomDatabase(){
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        @Volatile
+        private var nativeLibLoaded = false
+
         private const val DB_NAME = "password_manager.db"
+
+        private fun ensureNativeLibLoaded() {
+            if (!nativeLibLoaded) {
+                synchronized(this) {
+                    if (!nativeLibLoaded) {
+                        System.loadLibrary("sqlcipher")
+                        nativeLibLoaded = true
+                    }
+                }
+            }
+        }
 
         fun getInstance(context: Context, passphrase: ByteArray): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    val factory = SupportFactory(passphrase)
+                    ensureNativeLibLoaded()
+                    val factory = SupportOpenHelperFactory(passphrase)
                     val instance = Room.databaseBuilder(
                         context.applicationContext,
                         AppDatabase::class.java,

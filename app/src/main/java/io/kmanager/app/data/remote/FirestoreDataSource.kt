@@ -7,6 +7,7 @@ import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.utils.EncryptionManager
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
@@ -45,7 +46,14 @@ class FirestoreDataSource(private val context: Context) {
         val encrypted = EncryptionManager.encryptEntry(context, entry, passwordString) ?: return null
         val data = mapOf(
             "encryptedData" to encrypted,
-            "lastModified" to entry.lastModified
+            // Локальные часы устройства (сохраняется для обратной совместимости
+            // со старыми документами / как fallback, если serverTimestamp почему-то не резолвится).
+            "lastModified" to entry.lastModified,
+            // Авторитетное время для разрешения конфликтов между устройствами —
+            // назначается сервером Firestore, НЕ зависит от часов устройства-отправителя.
+            // Это устраняет баг с "устаревшими данными", когда часы одного из устройств
+            // (особенно эмуляторов) отстают/спешат относительно других.
+            "serverTimestamp" to FieldValue.serverTimestamp()
         )
         val docRef = if (entry.remoteId != null) {
             db.collection("users").document(uid).collection("passwords").document(entry.remoteId)
@@ -109,7 +117,10 @@ class FirestoreDataSource(private val context: Context) {
         var decryptFailures = 0
         for (doc in snapshot.documents) {
             val encrypted = doc.getString("encryptedData") ?: continue
-            val lastModifiedRemote = doc.getLong("lastModified") ?: 0
+            // Приоритет — серверное время Firestore (не зависит от часов устройства).
+            // Fallback на локальное поле lastModified нужен только для документов
+            val serverMillis = doc.getTimestamp("serverTimestamp")?.toDate()?.time
+            val lastModifiedRemote = serverMillis ?: (doc.getLong("lastModified") ?: 0)
             try {
                 val entry = EncryptionManager.decryptEntry(context, encrypted, passwordString)
                 if (entry != null) {
