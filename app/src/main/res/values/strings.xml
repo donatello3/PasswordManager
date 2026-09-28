@@ -53,6 +53,23 @@
 
     <string name="nav_privacy_policy">Privacy Policy</string>
 
+    <!-- Delete account -->
+    <string name="nav_delete_account">Delete Account</string>
+    <string name="delete_account_warning_title">⚠️ Delete Account</string>
+    <string name="delete_account_warning_message">This will permanently delete your account and all your saved passwords, both from this device and from the cloud. This action cannot be undone.\n\nDo you want to continue?</string>
+    <string name="delete_account_warning_continue">Continue</string>
+    <string name="delete_account_confirm_title">Confirm Your Identity</string>
+    <string name="delete_account_confirm_message">Enter your master password to permanently delete your account.</string>
+    <string name="delete_account_confirm_password_hint">Master Password</string>
+    <string name="delete_account_confirm_btn">Delete Account</string>
+    <string name="delete_account_password_empty">Enter your master password</string>
+    <string name="delete_account_wrong_password">Wrong password. Account was not deleted.</string>
+    <string name="delete_account_reauth_failed">Could not verify your identity. Check your connection and try again.</string>
+    <string name="delete_account_in_progress">Deleting your account…</string>
+    <string name="delete_account_partial_error">Account data was deleted, but the account itself could not be removed. Please try again or contact support.</string>
+    <string name="delete_account_success">Your account has been deleted.</string>
+    <string name="delete_account_generic_error">Failed to delete account. Please try again.</string>
+
     <!-- Forgot password screen -->
     <string name="forgot_password_link">Forgot Password?</string>
     <string name="forgot_password_title">Reset Password</string>

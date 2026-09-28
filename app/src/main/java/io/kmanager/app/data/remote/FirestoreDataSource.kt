@@ -5,7 +5,9 @@ import android.util.Base64
 import android.util.Log
 import io.kmanager.app.data.database.PasswordEntry
 import io.kmanager.app.utils.EncryptionManager
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
@@ -44,7 +46,14 @@ class FirestoreDataSource(private val context: Context) {
         val encrypted = EncryptionManager.encryptEntry(context, entry, passwordString) ?: return null
         val data = mapOf(
             "encryptedData" to encrypted,
-            "lastModified" to entry.lastModified
+            // Локальные часы устройства (сохраняется для обратной совместимости
+            // со старыми документами / как fallback, если serverTimestamp почему-то не резолвится).
+            "lastModified" to entry.lastModified,
+            // Авторитетное время для разрешения конфликтов между устройствами —
+            // назначается сервером Firestore, НЕ зависит от часов устройства-отправителя.
+            // Это устраняет баг с "устаревшими данными", когда часы одного из устройств
+            // (особенно эмуляторов) отстают/спешат относительно других.
+            "serverTimestamp" to FieldValue.serverTimestamp()
         )
         val docRef = if (entry.remoteId != null) {
             db.collection("users").document(uid).collection("passwords").document(entry.remoteId)
@@ -108,7 +117,10 @@ class FirestoreDataSource(private val context: Context) {
         var decryptFailures = 0
         for (doc in snapshot.documents) {
             val encrypted = doc.getString("encryptedData") ?: continue
-            val lastModifiedRemote = doc.getLong("lastModified") ?: 0
+            // Приоритет — серверное время Firestore (не зависит от часов устройства).
+            // Fallback на локальное поле lastModified нужен только для документов
+            val serverMillis = doc.getTimestamp("serverTimestamp")?.toDate()?.time
+            val lastModifiedRemote = serverMillis ?: (doc.getLong("lastModified") ?: 0)
             try {
                 val entry = EncryptionManager.decryptEntry(context, encrypted, passwordString)
                 if (entry != null) {
@@ -303,6 +315,57 @@ class FirestoreDataSource(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.e(TAG, "deleteAllUserPasswords failed", e)
+            false
+        }
+    }
+
+    /**
+     * Повторно подтверждает личность пользователя перед необратимыми операциями
+     * (удаление аккаунта). Firebase требует "свежий" вход для [FirebaseUser.delete] —
+     * этот вызов обновляет сессию независимо от того, истекла ли она, и заодно
+     * служит проверкой того, что пользователь действительно знает мастер-пароль.
+     */
+    suspend fun reauthenticate(password: String): Boolean {
+        val user = auth.currentUser ?: return false
+        val email = user.email ?: return false
+        return try {
+            val credential = EmailAuthProvider.getCredential(email, password)
+            withTimeout(15_000L) { user.reauthenticate(credential).await() }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "reauthenticate failed", e)
+            false
+        }
+    }
+
+    /**
+     * Удаляет метаданные пользователя (salt, keyVerifier, email) из Firestore.
+     */
+    suspend fun deleteUserMetadata(): Boolean {
+        val uid = currentUserId ?: return false
+        return try {
+            withTimeout(15_000L) {
+                db.collection("users").document(uid)
+                    .collection("metadata").document("crypto")
+                    .delete().await()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteUserMetadata failed", e)
+            false
+        }
+    }
+
+    /**
+     * Удаляет сам аккаунт Firebase Auth
+     */
+    suspend fun deleteAuthAccount(): Boolean {
+        val user = auth.currentUser ?: return false
+        return try {
+            withTimeout(15_000L) { user.delete().await() }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteAuthAccount failed", e)
             false
         }
     }

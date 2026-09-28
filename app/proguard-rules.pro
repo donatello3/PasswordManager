@@ -3,9 +3,11 @@
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
 
-# Keep SQLCipher (native library)
--keep class net.sqlcipher.** { *; }
--dontwarn net.sqlcipher.**
+# Keep SQLCipher (native library) — package net.zetetic.database.sqlcipher
+# since migrating from the deprecated net.zetetic:android-database-sqlcipher
+# artifact to its maintained successor net.zetetic:sqlcipher-android.
+-keep class net.zetetic.database.sqlcipher.** { *; }
+-dontwarn net.zetetic.database.sqlcipher.**
 
 # Keep Firebase classes
 -keepattributes Signature

@@ -5,12 +5,14 @@ import android.database.sqlite.SQLiteException
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.FrameLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
@@ -20,7 +22,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.kmanager.app.R
 import io.kmanager.app.data.database.PasswordEntry
+import io.kmanager.app.data.remote.FirestoreDataSource
 import io.kmanager.app.data.repository.PasswordRepository
+import io.kmanager.app.databinding.DialogDeleteAccountConfirmBinding
 import io.kmanager.app.ui.LoginActivity
 import io.kmanager.app.ui.SecurityActivity
 import io.kmanager.app.utils.CryptoManager
@@ -85,6 +89,10 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout.closeDrawers()
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://donatello3.github.io/k-manager-privacy-policy/"))
                     startActivity(intent)
+                }
+                R.id.nav_delete_account -> {
+                    drawerLayout.closeDrawers()
+                    showDeleteAccountWarning()
                 }
             }
             true
@@ -232,5 +240,118 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    // ── Delete account ──────────────────────────────────────────────────────
+
+    /** Шаг 1: предупреждение о необратимости. */
+    private fun showDeleteAccountWarning() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.delete_account_warning_title)
+            .setMessage(R.string.delete_account_warning_message)
+            .setPositiveButton(R.string.delete_account_warning_continue) { _, _ ->
+                showDeleteAccountPasswordDialog()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** Шаг 2: подтверждение личности вводом мастер-пароля. */
+    private fun showDeleteAccountPasswordDialog() {
+        val dialogBinding = DialogDeleteAccountConfirmBinding.inflate(LayoutInflater.from(this))
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.delete_account_confirm_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.delete_account_confirm_btn, null)
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val password = dialogBinding.etDeleteAccountPassword.text?.toString().orEmpty()
+                if (password.isEmpty()) {
+                    dialogBinding.tilDeleteAccountPassword.error = getString(R.string.delete_account_password_empty)
+                    return@setOnClickListener
+                }
+                dialogBinding.tilDeleteAccountPassword.error = null
+                dialog.dismiss()
+                performAccountDeletion(password)
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * Полное необратимое удаление аккаунта:
+     * 1. Reauthenticate (подтверждает и личность, и свежесть сессии для Firebase).
+     * 2. Удаление данных Firestore (пароли + метаданные).
+     * 3. Удаление локальных данных (файл БД, EncryptedSharedPreferences, биометрия).
+     * 4. Удаление самого аккаунта Firebase Auth.
+     * Если шаг 4 не удался после успешного удаления данных (1-3) — сообщаем
+     * пользователю о частичном сбое, т.к. данные уже безвозвратно стёрты.
+     */
+    private fun performAccountDeletion(password: String) {
+        showLoading(true)
+        lifecycleScope.launch {
+            val firestore = FirestoreDataSource(this@MainActivity)
+            try {
+                val reauthOk = firestore.reauthenticate(password)
+                if (!reauthOk) {
+                    showLoading(false)
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.delete_account_wrong_password),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
+                }
+
+                firestore.deleteAllUserPasswords()
+                firestore.deleteUserMetadata()
+
+                val app = application as PasswordManagerApplication
+                app.clearMasterPassword()
+                app.appContainer.clearRepository()
+                AppDatabase.resetInstance(this@MainActivity)
+                CryptoManager.wipeAllLocalData(this@MainActivity)
+
+                val authDeleted = firestore.deleteAuthAccount()
+                if (!authDeleted) {
+                    FirebaseAuth.getInstance().signOut()
+                    showLoading(false)
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.delete_account_partial_error),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    goToLoginScreen()
+                    return@launch
+                }
+
+                showLoading(false)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.delete_account_success),
+                    Toast.LENGTH_LONG
+                ).show()
+                goToLoginScreen()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "performAccountDeletion failed", e)
+                showLoading(false)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.delete_account_generic_error),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun goToLoginScreen() {
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 }

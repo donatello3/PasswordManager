@@ -7,13 +7,13 @@ plugins {
 
 android {
     namespace = "io.kmanager.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.kmanager.app"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -40,6 +40,16 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+    }
+}
+
+// sqlcipher-android transitively pulls a newer kotlin-stdlib than this project's
+// Kotlin plugin version (2.0.21). That newer stdlib's class metadata (2.1.0+)
+// cannot be read by Room's bundled kapt/kotlinx-metadata-jvm (max supported 2.0.0),
+// which breaks kaptDebugKotlin. Force a consistent stdlib version across the graph.
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}")
     }
 }
 
